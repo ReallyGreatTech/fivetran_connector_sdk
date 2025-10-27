@@ -54,7 +54,7 @@ This connector uses API key authentication with bearer tokens. The API key is pa
 
 To obtain your Clerk API key:
 1. Log in to your [Clerk Dashboard](https://dashboard.clerk.com/).
-2. Navigate to **API Keys** in the left sidebar.
+2. Navigate to the API Keys section.
 3. Make a note of your secret key (starts with `sk_test_` for test mode or `sk_live_` for production).
 4. Add this key to your `configuration.json` file.
 
