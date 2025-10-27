@@ -350,7 +350,7 @@ def handle_http_error_with_retry(response, attempt_number):
         )
 
 
-def make_api_request(url, api_key, params):
+def make_api_request(url: str, api_key: str, params: dict) -> dict:
     """
     Make an API request to Clerk API with retry logic and exponential backoff.
 
