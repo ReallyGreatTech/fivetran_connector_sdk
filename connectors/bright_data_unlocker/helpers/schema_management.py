@@ -29,17 +29,19 @@ def _load_existing_tables() -> dict:
 
 
 def _default_description(table_name: str) -> str:
+    """Generate default table description."""
     return (
-        f"Dynamically created table '{table_name}' from Bright Data results. "
+        f"Dynamically created table '{table_name}' from Bright Data unlocker results. "
         "Fields are inferred from the API response structure."
     )
 
 
 def update_fields_yaml(fields: Set[str], table_name: str) -> None:
     """
-    Update fields.yaml with discovered fields from Bright Data results.
+    Update fields.yaml with discovered fields from Bright Data unlocker results.
 
     Documents all fields found in the API responses for reference.
+    Merges with existing table entries to preserve other tables.
 
     Args:
         fields: Set of field names discovered from results

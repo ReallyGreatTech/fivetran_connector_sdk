@@ -14,12 +14,11 @@ def validate_configuration(configuration: dict) -> None:
     Raises:
         ValueError: If any required configuration parameter is missing.
     """
-    # Check that at least one endpoint is configured
-    has_unlocker = "unlocker_url" in configuration and configuration.get("unlocker_url")
-
-    if not has_unlocker:
-        raise ValueError("unlocker_url must be provided in configuration")
-
     # Validate API token
     if "api_token" not in configuration or not configuration.get("api_token"):
         raise ValueError("Missing required configuration value: api_token")
+
+    # Validate unlocker_url
+    unlocker_url = configuration.get("unlocker_url")
+    if not unlocker_url:
+        raise ValueError("unlocker_url cannot be empty")
