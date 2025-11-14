@@ -157,8 +157,8 @@ def _build_search_url(query: str, search_engine: str) -> str:
     search_engine = search_engine.lower()
 
     engine_templates = {
-        "google": "https://www.google.com/search?q={query}",
-        "bing": "https://www.bing.com/search?q={query}",
+        "google": "https://www.google.com/search?q={query}&brd_json=1",
+        "bing": "https://www.bing.com/search?q={query}&brd_json=1",
         "yandex": "https://yandex.com/search/?text={query}",
     }
 
