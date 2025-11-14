@@ -42,6 +42,7 @@ def update_fields_yaml(fields: Set[str], table_name: str) -> None:
     Update fields.yaml with discovered fields from Bright Data dataset results.
 
     Documents all fields found in the API responses for reference.
+    Merges with existing table entries to preserve other tables.
 
     Args:
         fields: Set of field names discovered from results

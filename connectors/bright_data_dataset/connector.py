@@ -15,14 +15,20 @@ https://fivetran.com/docs/connectors/connector-sdk/best-practices
 
 from typing import Any, Dict, List, Optional
 
-from helpers import (collect_all_fields, filter_dataset,
-                     process_dataset_record, update_fields_yaml,
-                     validate_configuration)
+# Helper functions for data processing, validation, and schema management
+from helpers import (
+    collect_all_fields,
+    filter_dataset,
+    process_dataset_record,
+    update_fields_yaml,
+    validate_configuration,
+)
 
 from fivetran_connector_sdk import Connector
 from fivetran_connector_sdk import Logging as log
 from fivetran_connector_sdk import Operations as op
 
+# Table name constant
 DATASET_TABLE = "dataset_results"
 
 
@@ -93,22 +99,27 @@ def update(
         filter_operator = configuration.get("filter_operator")
         filter_value = configuration.get("filter_value")
         records_limit_str = configuration.get("records_limit")
-        size = configuration.get("size")
 
         # Convert records_limit from string to integer if provided
+        # All Fivetran SDK configuration values must be strings, so we parse here
         records_limit = None
         if records_limit_str is not None:
             try:
                 records_limit = int(records_limit_str)
+                if records_limit <= 0:
+                    raise ValueError("records_limit must be a positive integer")
             except (ValueError, TypeError) as e:
-                raise ValueError(f"records_limit must be a valid integer: {str(e)}") from e
+                raise ValueError(f"records_limit must be a valid positive integer: {str(e)}") from e
 
         # Build filter object from individual parameters
+        # The filter object follows the Bright Data API specification:
+        # https://docs.brightdata.com/api-reference/marketplace-dataset-api/filter-dataset
         filter_obj = {
             "name": filter_name,
             "operator": filter_operator,
         }
         # Only include value if operator requires it
+        # Operators like 'is_null' and 'is_not_null' don't require a value
         if filter_operator.lower() not in ("is_null", "is_not_null"):
             filter_obj["value"] = filter_value
 
@@ -119,7 +130,6 @@ def update(
             filter_obj=filter_obj,
             records_limit=records_limit,
             state=new_state,
-            size=size,
         )
 
         # Checkpoint state after processing
@@ -145,35 +155,52 @@ def _sync_dataset_records(
     """
     Fetch filtered dataset records and upsert them to Fivetran.
 
+    This function creates a snapshot by filtering the dataset via Bright Data's API,
+    polls for snapshot completion, retrieves the filtered records, and upserts them
+    to the destination. The process includes automatic retry logic and error handling.
+
     Args:
         configuration: Configuration dictionary containing API token and other settings
         dataset_id: ID of the dataset to filter
-        filter_obj: Filter object containing filter criteria
-        records_limit: Maximum number of records to include
+        filter_obj: Filter object containing filter criteria (name, operator, value)
+        records_limit: Maximum number of records to include in the snapshot
         state: Current connector state
 
     Returns:
-        Updated state dictionary
+        Updated state dictionary with sync information
+
+    Raises:
+        RuntimeError: If snapshot creation or retrieval fails
     """
     api_token = configuration.get("api_token")
 
     # Filter dataset and get records
-    records = filter_dataset(
-        api_token=api_token,
-        dataset_id=dataset_id,
-        filter_obj=filter_obj,
-        records_limit=records_limit,
-    )
+    # This creates a snapshot, polls for completion, and retrieves the filtered records
+    # See: https://docs.brightdata.com/api-reference/marketplace-dataset-api/filter-dataset
+    try:
+        records = filter_dataset(
+            api_token=api_token,
+            dataset_id=dataset_id,
+            filter_obj=filter_obj,
+            records_limit=records_limit,
+        )
+    except (RuntimeError, ValueError) as exc:
+        # Log error and re-raise for proper error handling at the update level
+        log.info(f"Error filtering dataset: {str(exc)}")
+        raise
 
+    # Normalize results to always be a list
     if not isinstance(records, list):
         records = [records]
 
     # Process and flatten records
     processed_results: List[Dict[str, Any]] = []
     for index, record in enumerate(records):
+        # Each record is flattened and metadata is added (dataset_id, record_index)
         processed_result = process_dataset_record(record, index, dataset_id)
         processed_results.append(processed_result)
 
+    # Upsert processed results to Fivetran
     if processed_results:
         log.info(f"Upserting {len(processed_results)} dataset records to Fivetran")
 
@@ -181,7 +208,12 @@ def _sync_dataset_records(
         all_fields = collect_all_fields(processed_results)
         update_fields_yaml(all_fields, DATASET_TABLE)
 
-        # Upsert each record
+        # Upsert each record as a separate row
+        # The 'upsert' operation is used to insert or update data in the destination table.
+        # The op.upsert method is called with two arguments:
+        # - The first argument is the name of the table to upsert the data into.
+        # - The second argument is a dictionary containing the data to be upserted,
+        #   where each key is a column name and the value is a list containing the row value.
         for result in processed_results:
             row: Dict[str, List[Any]] = {
                 field: [result.get(field)] for field in all_fields
