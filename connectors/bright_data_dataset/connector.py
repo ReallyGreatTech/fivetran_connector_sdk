@@ -15,6 +15,9 @@ https://fivetran.com/docs/connectors/connector-sdk/best-practices
 
 from typing import Any, Dict, List, Optional
 
+# Bright Data SDK for snapshot polling and downloading
+from brightdata import bdclient
+
 # Helper functions for data processing, validation, and schema management
 from helpers import (
     collect_all_fields,
@@ -90,6 +93,10 @@ def update(
     # Validate the configuration to ensure it contains all required values
     validate_configuration(configuration=configuration)
 
+    # Initialize Bright Data client with API token for snapshot polling
+    api_token = configuration.get("api_token")
+    client = bdclient(api_token=api_token)
+
     new_state = dict(state) if state else {}
 
     try:
@@ -125,6 +132,7 @@ def update(
 
         # Sync dataset records
         new_state = _sync_dataset_records(
+            client=client,
             configuration=configuration,
             dataset_id=dataset_id,
             filter_obj=filter_obj,
@@ -146,6 +154,7 @@ def update(
 
 
 def _sync_dataset_records(
+    client: bdclient,
     configuration: Dict[str, Any],
     dataset_id: str,
     filter_obj: Dict[str, Any],
@@ -155,11 +164,12 @@ def _sync_dataset_records(
     """
     Fetch filtered dataset records and upsert them to Fivetran.
 
-    This function creates a snapshot by filtering the dataset via Bright Data's API,
-    polls for snapshot completion, retrieves the filtered records, and upserts them
-    to the destination. The process includes automatic retry logic and error handling.
+    This function creates a snapshot by filtering the dataset via Bright Data's REST API,
+    uses the Bright Data SDK to poll for snapshot completion, retrieves the filtered records,
+    and upserts them to the destination. The SDK handles polling automatically.
 
     Args:
+        client: Initialized Bright Data client instance for snapshot polling
         configuration: Configuration dictionary containing API token and other settings
         dataset_id: ID of the dataset to filter
         filter_obj: Filter object containing filter criteria (name, operator, value)
@@ -175,10 +185,11 @@ def _sync_dataset_records(
     api_token = configuration.get("api_token")
 
     # Filter dataset and get records
-    # This creates a snapshot, polls for completion, and retrieves the filtered records
+    # This creates a snapshot via REST API, then uses SDK to poll and download
     # See: https://docs.brightdata.com/api-reference/marketplace-dataset-api/filter-dataset
     try:
         records = filter_dataset(
+            client=client,
             api_token=api_token,
             dataset_id=dataset_id,
             filter_obj=filter_obj,
@@ -188,6 +199,12 @@ def _sync_dataset_records(
         # Log error and re-raise for proper error handling at the update level
         log.info(f"Error filtering dataset: {str(exc)}")
         raise
+    except Exception as exc:
+        # Catch any other exceptions from SDK or API calls
+        log.info(f"Unexpected error filtering dataset: {type(exc).__name__}: {str(exc)}")
+        raise RuntimeError(
+            f"Failed to filter dataset: {str(exc)}"
+        ) from exc
 
     # Normalize results to always be a list
     if not isinstance(records, list):

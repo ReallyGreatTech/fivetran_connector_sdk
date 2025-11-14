@@ -27,13 +27,35 @@ def parse_response_payload(response: Response) -> Any:
 
 
 def extract_error_detail(response: Response) -> str:
-    """Extract error detail from a failed Bright Data response."""
+    """
+    Extract error detail from a failed Bright Data response.
+
+    Handles various error response formats:
+    - 400: validation_errors array
+    - 402, 422, 429: error field
+    - Other: error, message, detail, details fields
+
+    Args:
+        response: The HTTP response object
+
+    Returns:
+        Formatted error message string
+    """
     try:
         payload = response.json()
         if isinstance(payload, dict):
+            # Handle validation_errors array (400 Bad Request)
+            if "validation_errors" in payload:
+                validation_errors = payload["validation_errors"]
+                if isinstance(validation_errors, list):
+                    return "; ".join(str(err) for err in validation_errors)
+                return str(validation_errors)
+
+            # Handle standard error fields
             for key in ("error", "message", "detail", "details"):
                 if key in payload:
                     return str(payload[key])
+
             return str(payload)
         return str(payload)
     except ValueError:
