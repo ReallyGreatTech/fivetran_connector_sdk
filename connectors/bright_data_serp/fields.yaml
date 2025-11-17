@@ -14,9 +14,11 @@ tables:
     - headers_date
     - headers_expires
     - headers_host
+    - headers_p3p
     - headers_permissions-policy
     - headers_report-to
     - headers_server
+    - headers_set-cookie
     - headers_strict-transport-security
     - headers_transfer-encoding
     - headers_x-frame-options

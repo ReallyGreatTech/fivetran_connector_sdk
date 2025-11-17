@@ -93,7 +93,7 @@ def perform_search(
         while attempt <= retries:
             try:
                 response = requests.post(
-                    f"{BRIGHT_DATA_BASE_URL}/request",
+                    f"{BRIGHT_DATA_BASE_URL}/request?async=true",
                     headers=headers,
                     json=payload,
                     timeout=timeout,
