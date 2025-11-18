@@ -3,12 +3,37 @@ tables:
     description: Dynamically created table 'scrape_results' from Bright Data results.
       Fields are inferred from the API response structure.
     fields:
+    - alt_text
+    - audio
+    - content_id
+    - content_type
+    - date_posted
+    - description
+    - followers
+    - hashtags
     - images
-    - links
+    - input_url
+    - is_paid_partnership
+    - is_verified
+    - likes
+    - location
+    - num_comments
+    - partnership_details
+    - photos
+    - photos_number
+    - pk
     - position
-    - raw_length
+    - post_content
+    - post_id
+    - posts_count
+    - profile_image_link
+    - profile_url
     - result_index
-    - text
-    - title
-    - type
+    - shortcode
+    - tagged_users
+    - thumbnail
+    - timestamp
     - url
+    - user_posted
+    - user_posted_id
+    - videos_duration
