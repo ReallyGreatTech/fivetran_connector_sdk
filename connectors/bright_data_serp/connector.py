@@ -208,10 +208,49 @@ def _sync_search_queries(
         # - The first argument is the name of the table to upsert the data into.
         # - The second argument is a dictionary containing the data to be upserted,
         #   where each key is a column name and the value is a list containing the row value.
+        # Note: Primary key fields (query, result_index) must always be present with correct types
+        primary_keys = {"query": str, "result_index": int}
         for result in processed_results:
-            row: Dict[str, List[Any]] = {
-                field: [result.get(field)] for field in all_fields
-            }
+            # Ensure primary keys are always present with correct types
+            for pk, pk_type in primary_keys.items():
+                if pk not in result:
+                    log.info(f"Warning: Primary key '{pk}' missing from result, adding default value")
+                    result[pk] = pk_type() if pk_type == str else 0
+                else:
+                    # Ensure the type is correct - convert if necessary
+                    current_value = result[pk]
+                    if not isinstance(current_value, pk_type):
+                        try:
+                            if pk_type == str:
+                                result[pk] = str(current_value)
+                            elif pk_type == int:
+                                # Try to convert to int, handling JSON strings like "[0]"
+                                if isinstance(current_value, str):
+                                    # Remove brackets and quotes if it's a JSON string
+                                    cleaned = current_value.strip().strip('[]"\'')
+                                    result[pk] = int(cleaned) if cleaned.isdigit() else 0
+                                else:
+                                    result[pk] = int(current_value)
+                        except (ValueError, TypeError):
+                            log.info(f"Warning: Could not convert primary key '{pk}' to {pk_type.__name__}, using default")
+                            result[pk] = pk_type() if pk_type == str else 0
+
+            # Build row data, ensuring primary keys have correct types
+            row: Dict[str, List[Any]] = {}
+            for field in all_fields:
+                value = result.get(field)
+                # Explicitly ensure result_index is an integer before upsert
+                if field == "result_index":
+                    if isinstance(value, str):
+                        # Handle string values like "[0]" or "0"
+                        cleaned = value.strip().strip('[]"\'')
+                        value = int(cleaned) if cleaned.isdigit() else 0
+                    elif value is not None:
+                        value = int(value)
+                    else:
+                        value = 0
+                row[field] = [value]
+
             op.upsert(SERP_TABLE, row)
 
         # Update state with sync information
