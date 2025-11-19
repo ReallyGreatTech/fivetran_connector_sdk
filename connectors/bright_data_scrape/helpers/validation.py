@@ -18,6 +18,10 @@ def validate_configuration(configuration: dict) -> None:
     if "api_token" not in configuration or not configuration.get("api_token"):
         raise ValueError("Missing required configuration value: api_token")
 
+    # Validate dataset_id
+    if "dataset_id" not in configuration or not configuration.get("dataset_id"):
+        raise ValueError("Missing required configuration value: dataset_id")
+
     # Validate scrape_url
     scrape_url = configuration.get("scrape_url")
     if not scrape_url:

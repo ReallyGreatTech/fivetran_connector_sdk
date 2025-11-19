@@ -43,6 +43,10 @@ def collect_all_fields(results: List[Dict[str, Any]]) -> Set[str]:
 def process_scrape_result(result: Any, url: str, result_index: int) -> Dict[str, Any]:
     """
     Flatten an individual scrape result and add metadata columns.
+
+    Primary key fields (url, result_index) are always preserved and never overwritten
+    by values from the flattened API response, even if the response contains fields
+    with the same names.
     """
     base_fields = {
         "url": url,
@@ -55,5 +59,28 @@ def process_scrape_result(result: Any, url: str, result_index: int) -> Dict[str,
         return base_fields
 
     flattened = flatten_dict(result)
-    flattened.update(base_fields)
-    return flattened
+
+    # Remove any conflicting fields from flattened data that match primary key names
+    # This ensures API response fields like "url" or "result_index" (if present as arrays)
+    # don't overwrite our correct primary key values
+    # Also check for nested variations (e.g., input.result_index, data.result_index)
+    primary_key_fields = {"url", "result_index"}
+    for pk_field in primary_key_fields:
+        # Remove exact match
+        flattened.pop(pk_field, None)
+        # Remove any nested variations (e.g., input_result_index, data_result_index)
+        keys_to_remove = [k for k in flattened.keys() if k.endswith(f"_{pk_field}") or k.startswith(f"{pk_field}_")]
+        for key in keys_to_remove:
+            flattened.pop(key, None)
+
+    # Add base_fields after removing conflicts to ensure correct primary keys
+    # base_fields is added last to ensure our values (with correct types) always take precedence
+    # Since API response doesn't include result_index, we can safely merge
+    final_result = {**flattened, **base_fields}
+
+    # Explicitly ensure result_index is always an integer
+    # This is a safety check - result_index should already be an int from base_fields
+    final_result["result_index"] = int(result_index)
+    final_result["position"] = int(result_index + 1)
+
+    return final_result

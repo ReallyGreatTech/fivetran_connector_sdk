@@ -1,249 +1,572 @@
 """Bright Data Web Scraper helper functions."""
 
+import json
 import time
 from typing import Any, Dict, List, Optional, Union
 
-from brightdata import bdclient
+import requests
+from requests import RequestException
 
 from fivetran_connector_sdk import Logging as log
 
+from .common import (
+    BRIGHT_DATA_BASE_URL,
+    DEFAULT_TIMEOUT_SECONDS,
+    RETRY_STATUS_CODES,
+    extract_error_detail,
+    parse_response_payload,
+)
+
 
 def perform_scrape(
-    client: bdclient,
+    api_token: str,
+    dataset_id: str,
     url: Union[str, List[str]],
     country: Optional[str] = None,
     data_format: Optional[str] = None,
     format_param: Optional[str] = "json",
     method: Optional[str] = None,
-    async_request: bool = True,
     max_poll_attempts: int = 60,
-    poll_interval: int = 5,
-) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    poll_interval: int = 30,
+    timeout: int = DEFAULT_TIMEOUT_SECONDS,
+    retries: int = 3,
+    backoff_factor: float = 1.5,
+) -> List[Dict[str, Any]]:
     """
-    Scrape URLs using Bright Data's Web Scraper.
+    Scrape URLs using Bright Data's Web Scraper REST API.
+
+    This function triggers a scrape job via POST /datasets/v3/trigger, receives a snapshot_id,
+    and polls GET /datasets/v3/snapshot/{snapshot_id} until the status is "ready" or "failed".
+
+    Args:
+        api_token: Bright Data API token
+        dataset_id: ID of the dataset to use for scraping
+        url: Single URL or list of URLs to scrape
+        country: Optional country code for geolocation targeting
+        data_format: Optional format for extracted data
+        format_param: Output format (default: "json")
+        method: Optional HTTP method (default: "GET")
+        max_poll_attempts: Maximum number of polling attempts
+        poll_interval: Interval between polling attempts in seconds
+        timeout: Request timeout in seconds
+        retries: Number of retries for failed requests
+        backoff_factor: Backoff factor for exponential backoff
+
+    Returns:
+        List of scraped results (each result is a dictionary)
+
+    Raises:
+        ValueError: If API token, dataset_id, or URL is invalid
+        RuntimeError: If scrape trigger or polling fails
     """
+    if not api_token or not isinstance(api_token, str):
+        raise ValueError("A valid Bright Data API token is required")
+
+    if not dataset_id or not isinstance(dataset_id, str):
+        raise ValueError("dataset_id must be a non-empty string")
+
     if not url:
         raise ValueError("URL cannot be empty")
 
     if not isinstance(url, (str, list)):
         raise TypeError("URL must be a string or list of strings")
 
-    try:
-        scrape_params: Dict[str, Any] = {}
+    # Normalize URLs to list
+    urls: List[str]
+    if isinstance(url, list):
+        urls = [item.strip() for item in url if isinstance(item, str) and item.strip()]
+    else:
+        urls = [url.strip()]
 
-        if country:
-            scrape_params["country"] = country.lower()
-        if data_format:
-            scrape_params["data_format"] = data_format
-        if format_param:
-            scrape_params["format"] = format_param
-        if method:
-            scrape_params["method"] = method
-        if async_request:
-            scrape_params["async_request"] = True
+    if not urls:
+        raise ValueError("At least one non-empty URL must be provided")
 
-        url_count = len(url) if isinstance(url, list) else 1
-        request_type = "async" if async_request else "sync"
-        log.info(
-            f"Executing Bright Data scrape ({request_type}) for {url_count} URL"
-            f"{'s' if url_count > 1 else ''}"
-        )
+    # Build payload for trigger request
+    # Convert list of URL strings to API-required format:
+    # [{"url": "https://example.com/1"}, {"url": "https://example.com/2"}, ...]
+    # This matches the Bright Data API endpoint structure which accepts a list of objects
+    payload = [{"url": single_url} for single_url in urls]
 
-        results = client.scrape(url, **scrape_params)
+    # Trigger scrape job
+    snapshot_id = _trigger_scrape(
+        api_token=api_token,
+        dataset_id=dataset_id,
+        payload=payload,
+        country=country,
+        data_format=data_format,
+        format_param=format_param,
+        method=method,
+        timeout=timeout,
+        retries=retries,
+        backoff_factor=backoff_factor,
+    )
 
-        if async_request:
-            snapshot_ids = _extract_snapshot_ids(results, url_count)
+    if not snapshot_id:
+        raise RuntimeError("Failed to trigger scrape job - no snapshot_id returned")
 
-            if snapshot_ids:
-                valid_snapshot_ids = [
-                    sid for sid in snapshot_ids if _is_valid_snapshot_candidate(sid)
-                ]
+    # Poll snapshot until ready or failed
+    results = _poll_snapshot(
+        api_token=api_token,
+        snapshot_id=snapshot_id,
+        max_attempts=max_poll_attempts,
+        poll_interval=poll_interval,
+        timeout=timeout,
+        format_param=format_param,
+    )
 
-                if valid_snapshot_ids:
-                    results = _poll_snapshots(
-                        client, valid_snapshot_ids, max_poll_attempts, poll_interval
-                    )
+    # Normalize results to always be a list
+    if not isinstance(results, list):
+        results = [results] if results else []
 
-        if isinstance(results, list) and len(results) > 0:
-            parsed_results: List[Dict[str, Any]] = []
-            for result in results:
-                if not result or (isinstance(result, str) and len(result.strip()) == 0):
-                    continue
+    result_count = len(results)
+    log.info(f"Scrape completed successfully. Retrieved {result_count} result(s)")
 
-                parsed = client.parse_content(
-                    result,
-                    extract_text=True,
-                    extract_links=True,
-                    extract_images=True,
-                )
-                if isinstance(parsed, list):
-                    parsed_results.extend(parsed)
-                else:
-                    parsed_results.append(parsed)
-        else:
-            parsed_results = client.parse_content(
-                results,
-                extract_text=True,
-                extract_links=True,
-                extract_images=True,
-            )
-            if not isinstance(parsed_results, list):
-                parsed_results = [parsed_results]
-
-        result_count = len(parsed_results)
-        log.info(f"Scrape completed successfully. Retrieved {result_count} result(s)")
-
-        return parsed_results
-
-    except ValueError as e:
-        log.info(f"Validation error in Bright Data scrape: {str(e)}")
-        raise
-    except TypeError as e:
-        log.info(f"Type error in Bright Data scrape: {str(e)}")
-        raise
-    except Exception as e:
-        log.info(f"Error performing Bright Data scrape: {str(e)}")
-        raise
-
-
-def _extract_snapshot_ids(
-    results: Union[Dict[str, Any], List[Dict[str, Any]], str], _url_count: int
-) -> List[str]:
-    """Extract snapshot ids from async responses."""
-    snapshot_ids: List[str] = []
-
-    def is_valid_snapshot_id(sid: str) -> bool:
-        if not isinstance(sid, str) or not sid.strip():
-            return False
-        if len(sid) > 200:
-            return False
-        if sid.strip().startswith("<") or sid.strip().startswith("<!"):
-            return False
-        if "<html" in sid.lower() or "<body" in sid.lower():
-            return False
-        return True
-
-    if isinstance(results, list):
-        for result in results:
-            if isinstance(result, dict):
-                snapshot_id = result.get("snapshot_id")
-                if snapshot_id and is_valid_snapshot_id(str(snapshot_id)):
-                    snapshot_ids.append(str(snapshot_id))
-            elif isinstance(result, str):
-                if is_valid_snapshot_id(result):
-                    snapshot_ids.append(result)
-    elif isinstance(results, dict):
-        snapshot_id = results.get("snapshot_id")
-        if snapshot_id and is_valid_snapshot_id(str(snapshot_id)):
-            snapshot_ids.append(str(snapshot_id))
-    elif isinstance(results, str):
-        if is_valid_snapshot_id(results):
-            snapshot_ids.append(results)
-
-    return snapshot_ids
-
-
-def _poll_snapshots(
-    client: bdclient,
-    snapshot_ids: List[str],
-    max_attempts: int = 20,
-    poll_interval: int = 5,
-) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
-    """Poll the snapshot endpoint until all snapshots are ready."""
-    results: List[Any] = []
-    completed_snapshots = set()
-    failed_snapshots: List[str] = []
-
-    for attempt in range(max_attempts):
-        if len(completed_snapshots) == len(snapshot_ids):
-            break
-
-        for snapshot_id in snapshot_ids:
-            if snapshot_id in completed_snapshots or snapshot_id in failed_snapshots:
-                continue
-
-            try:
-                snapshot_response = client.download_snapshot(snapshot_id)
-
-                status = None
-                snapshot_data = None
-
-                if isinstance(snapshot_response, dict):
-                    status = snapshot_response.get("status", "").lower()
-                    if status == "ready":
-                        snapshot_data = (
-                            snapshot_response.get("data") or snapshot_response
-                        )
-                    elif status == "failed":
-                        error_msg = snapshot_response.get("error", "Unknown error")
-                        failed_snapshots.append(snapshot_id)
-                        log.info(
-                            f"Snapshot {snapshot_id[:8]}... status: failed - {error_msg}"
-                        )
-                        continue
-                    elif status == "running":
-                        log.info(
-                            f"Snapshot {snapshot_id[:8]}... status: running (attempt {attempt + 1}/{max_attempts})"
-                        )
-                        continue
-                elif snapshot_response:
-                    snapshot_data = snapshot_response
-                    status = "ready"
-
-                if snapshot_data:
-                    results.append(snapshot_data)
-                    completed_snapshots.add(snapshot_id)
-                    log.info(
-                        f"Snapshot {snapshot_id[:8]}... status: ready - completed ({len(completed_snapshots)}/{len(snapshot_ids)})"
-                    )
-                else:
-                    log.info(
-                        f"Snapshot {snapshot_id[:8]}... still processing (attempt {attempt + 1}/{max_attempts})"
-                    )
-
-            except (ValueError, RuntimeError, KeyError) as e:
-                error_msg = str(e).lower()
-
-                if "failed" in error_msg:
-                    failed_snapshots.append(snapshot_id)
-                    log.info(f"Snapshot {snapshot_id[:8]}... failed: {str(e)}")
-                elif any(
-                    keyword in error_msg
-                    for keyword in ("not ready", "not found", "pending", "running")
-                ):
-                    log.info(
-                        f"Snapshot {snapshot_id[:8]}... status: running (attempt {attempt + 1}/{max_attempts})"
-                    )
-                else:
-                    log.info(f"Error polling snapshot {snapshot_id[:8]}...: {str(e)}")
-
-        if len(completed_snapshots) < len(snapshot_ids) and attempt < max_attempts - 1:
-            time.sleep(poll_interval)
-
-    if failed_snapshots:
-        failed_list = ", ".join([sid[:8] + "..." for sid in failed_snapshots])
-        raise RuntimeError(f"Snapshot(s) failed: {failed_list}")
-
-    if len(completed_snapshots) < len(snapshot_ids):
-        incomplete = len(snapshot_ids) - len(completed_snapshots)
-        raise RuntimeError(
-            f"Timeout: {incomplete} snapshot(s) did not complete after {max_attempts} attempts"
-        )
-
-    if len(results) == 1:
-        return results[0]
     return results
 
 
-def _is_valid_snapshot_candidate(candidate: Any) -> bool:
-    """Return True if the value appears to be a valid snapshot identifier."""
-    if not isinstance(candidate, str):
-        return False
-    stripped = candidate.strip()
-    if not stripped:
-        return False
-    if len(candidate) >= 200:
-        return False
-    if stripped.startswith("<"):
-        return False
-    return True
+def _trigger_scrape(
+    api_token: str,
+    dataset_id: str,
+    payload: List[Dict[str, Any]],
+    country: Optional[str],
+    data_format: Optional[str],
+    format_param: Optional[str],
+    method: Optional[str],
+    timeout: int,
+    retries: int,
+    backoff_factor: float,
+) -> str:
+    """
+    Trigger a scrape job via POST /datasets/v3/trigger.
+
+    Returns:
+        snapshot_id string from the response
+
+    Raises:
+        ValueError: For 400/422 errors (invalid input)
+        RuntimeError: For other API errors or network failures
+    """
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+        "Content-Type": "application/json",
+    }
+
+    # Build query parameters
+    # According to Bright Data API docs, trigger endpoint accepts:
+    # dataset_id, format, and include_errors as query parameters
+    params: Dict[str, Any] = {
+        "dataset_id": dataset_id,
+        "format": "json",
+        "include_errors": "true",  # Include errors report with the results
+    }
+
+    # Override format if format_param is provided
+    if format_param:
+        params["format"] = format_param
+
+    # Add dataset-specific query parameters
+    # For dataset_id gd_lyy3tktm25m4avu764, add discover_by and type parameters
+    if dataset_id == "gd_lyy3tktm25m4avu764":
+        params["discover_by"] = "profile_url"
+        params["type"] = "discover_new"
+
+    # Build request body - according to Bright Data API docs, body should be:
+    # [{"url": "https://..."}, {"url": "https://..."}, ...]
+    # The API documentation shows that optional fields like country, data_format, method
+    # may not be supported in the body for all datasets, so we keep the body simple
+    # with just the URL objects as shown in the API examples
+    body_payload = payload.copy()
+
+    # Note: Optional fields like country, data_format, method may be dataset-specific
+    # and are not included in the standard body format per Bright Data API docs
+    # If your dataset requires these, they may need to be passed as query parameters
+    # or configured differently - check your dataset documentation
+
+    url_count = len(payload)
+    log.info(
+        f"Triggering Bright Data scrape for {url_count} URL{'s' if url_count > 1 else ''} "
+        f"using dataset_id: {dataset_id}"
+    )
+
+    attempt = 0
+    backoff = backoff_factor
+
+    while attempt <= retries:
+        try:
+            # Log request details for debugging (without sensitive data)
+            log.info(
+                f"Sending POST request to {BRIGHT_DATA_BASE_URL}/datasets/v3/trigger "
+                f"with params: {params}, payload containing {url_count} URL(s)"
+            )
+
+            response = requests.post(
+                f"{BRIGHT_DATA_BASE_URL}/datasets/v3/trigger",
+                headers=headers,
+                params=params,
+                json=body_payload,
+                timeout=timeout,
+            )
+
+            if response.status_code == 200:
+                response_data = parse_response_payload(response)
+                if isinstance(response_data, dict):
+                    snapshot_id = response_data.get("snapshot_id")
+                    if snapshot_id:
+                        log.info(
+                            f"Scrape job triggered successfully. Snapshot ID: {snapshot_id[:8]}..."
+                        )
+                        return str(snapshot_id)
+                    raise RuntimeError("Trigger response missing snapshot_id field")
+                raise RuntimeError(
+                    f"Unexpected trigger response format: {response_data}"
+                )
+
+            # Handle 400/422 as ValueError (invalid input)
+            if response.status_code in (400, 422):
+                error_detail = extract_error_detail(response)
+                # Log the full response for debugging
+                try:
+                    response_json = response.json()
+                    log.info(
+                        f"Invalid scrape request (status {response.status_code}): {error_detail}. "
+                        f"Request URL: {response.url}, "
+                        f"Request payload (first URL): {body_payload[0] if body_payload else 'empty'}, "
+                        f"Full response: {response_json}"
+                    )
+                except ValueError:
+                    log.info(
+                        f"Invalid scrape request (status {response.status_code}): {error_detail}. "
+                        f"Request URL: {response.url}, "
+                        f"Request payload (first URL): {body_payload[0] if body_payload else 'empty'}, "
+                        f"Response text: {response.text[:500]}"
+                    )
+                raise ValueError(f"Invalid scrape request: {error_detail}")
+
+            # Retry on certain status codes
+            if response.status_code in RETRY_STATUS_CODES and attempt < retries:
+                log.info(
+                    f"Bright Data scrape trigger retry {attempt + 1}/{retries} "
+                    f"(status code: {response.status_code})"
+                )
+                attempt += 1
+                time.sleep(backoff)
+                backoff *= backoff_factor
+                continue
+
+            # For other errors, raise with details
+            error_detail = extract_error_detail(response)
+            log.info(
+                f"Bright Data scrape trigger failed (status {response.status_code}): "
+                f"{error_detail}"
+            )
+            response.raise_for_status()
+
+        except RequestException as exc:
+            if attempt < retries:
+                log.info(
+                    f"Error contacting Bright Data Scraper API: {str(exc)}. "
+                    f"Retrying ({attempt + 1}/{retries})"
+                )
+                attempt += 1
+                time.sleep(backoff)
+                backoff *= backoff_factor
+                continue
+            raise RuntimeError(
+                f"Failed to trigger Bright Data scrape after {retries} retries: {str(exc)}"
+            ) from exc
+
+    raise RuntimeError("Failed to trigger Bright Data scrape after retries")
+
+
+def _poll_snapshot(
+    api_token: str,
+    snapshot_id: str,
+    max_attempts: int,
+    poll_interval: int,
+    timeout: int,
+    format_param: Optional[str] = "json",
+) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
+    """
+    Poll the snapshot endpoint until status is "ready" or "failed".
+
+    According to API docs: GET /datasets/v3/snapshot/{snapshot_id}?format=json
+
+    Args:
+        api_token: Bright Data API token
+        snapshot_id: Snapshot ID to poll
+        max_attempts: Maximum number of polling attempts
+        poll_interval: Interval between polling attempts in seconds
+        timeout: Request timeout in seconds
+        format_param: Output format (default: "json")
+
+    Returns:
+        Snapshot data when ready (dict or list)
+
+    Raises:
+        RuntimeError: If snapshot fails or polling times out
+    """
+    headers = {
+        "Authorization": f"Bearer {api_token}",
+    }
+
+    params: Dict[str, Any] = {
+        "format": "json",
+    }
+    if format_param:
+        params["format"] = format_param
+
+    for attempt in range(max_attempts):
+        try:
+            response = requests.get(
+                f"{BRIGHT_DATA_BASE_URL}/datasets/v3/snapshot/{snapshot_id}",
+                headers=headers,
+                params=params,
+                timeout=timeout,
+            )
+
+            if response.status_code == 200:
+                # According to Bright Data API, when ready the response can be:
+                # - An array of objects: [{"id": "...", ...}, ...] (Content-Type: application/json)
+                # - JSON Lines format: {"id":"..."}\n{"id":"..."}\n... (Content-Type: application/jsonl)
+                # - Single JSON object as string
+                content_type = response.headers.get("Content-Type", "").lower()
+                raw_text = response.text
+
+                log.info(
+                    f"Snapshot {snapshot_id[:8]}... poll response type: str, "
+                    f"Content-Type: {content_type or 'unknown'}, length: {len(raw_text)}"
+                )
+
+                # Check if it's JSON Lines format (application/jsonl)
+                if "jsonl" in content_type or "json-lines" in content_type:
+                    # Parse JSON Lines format - each line is a separate JSON object
+                    results = []
+                    for line_num, line in enumerate(raw_text.strip().split("\n"), 1):
+                        line = line.strip()
+                        if not line:
+                            continue
+                        try:
+                            parsed_obj = json.loads(line)
+                            results.append(parsed_obj)
+                        except json.JSONDecodeError as e:
+                            log.info(
+                                f"Snapshot {snapshot_id[:8]}... JSONL parse error on line {line_num}: {str(e)}. "
+                                f"Line: {line[:200]}..."
+                            )
+                            # Continue with other lines even if one fails
+                    if results:
+                        log.info(
+                            f"Snapshot {snapshot_id[:8]}... ready (JSONL format with {len(results)} records) "
+                            f"after {attempt + 1} attempt(s)"
+                        )
+                        return results
+
+                # Try to parse as standard JSON (array or single object)
+                try:
+                    # Try requests' built-in JSON parser first
+                    response_data = response.json()
+                except (ValueError, json.JSONDecodeError):
+                    # If that fails, try manual parsing of the raw text
+                    try:
+                        response_data = json.loads(raw_text)
+                    except (json.JSONDecodeError, ValueError):
+                        # If both fail, use raw text for further processing
+                        response_data = raw_text
+
+                # If response is a list (array of objects), snapshot is ready
+                if isinstance(response_data, list):
+                    log.info(
+                        f"Snapshot {snapshot_id[:8]}... ready (array response with {len(response_data)} records) "
+                        f"after {attempt + 1} attempt(s)"
+                    )
+                    return response_data
+
+                # If response is a string, try to parse it as JSON
+                if isinstance(response_data, str):
+                    response_lower = response_data.lower()
+                    # Check if it's a "not ready" status message
+                    if any(
+                        phrase in response_lower
+                        for phrase in ("not ready", "processing", "pending", "try again")
+                    ):
+                        log.info(
+                            f"Snapshot {snapshot_id[:8]}... still processing: {response_data[:200]}... "
+                            f"(attempt {attempt + 1}/{max_attempts})"
+                        )
+                        # Continue to sleep and retry
+                    else:
+                        # Try parsing as JSON - check if string looks like JSON (starts with { or [)
+                        trimmed_text = response_data.strip()
+                        if trimmed_text.startswith(("{", "[")):
+                            try:
+                                parsed_data = json.loads(response_data)
+                                # If parsed successfully, it's data - return it
+                                log.info(
+                                    f"Snapshot {snapshot_id[:8]}... ready (parsed JSON string response, "
+                                    f"{len(parsed_data) if isinstance(parsed_data, list) else 1} records) "
+                                    f"after {attempt + 1} attempt(s)"
+                                )
+                                # Normalize to list format
+                                if isinstance(parsed_data, list):
+                                    return parsed_data
+                                elif isinstance(parsed_data, dict):
+                                    return [parsed_data]
+                                else:
+                                    return [parsed_data] if parsed_data else []
+                            except json.JSONDecodeError as e:
+                                # JSON parsing failed - might be JSONL format or truncated
+                                error_pos = getattr(e, 'pos', None)
+                                error_msg = str(e)
+                                # Check if error indicates multiple objects (JSONL format)
+                                if "Extra data" in error_msg or error_pos:
+                                    # Try parsing as JSONL format (line-by-line)
+                                    try:
+                                        results = []
+                                        for line in raw_text.strip().split("\n"):
+                                            line = line.strip()
+                                            if not line:
+                                                continue
+                                            try:
+                                                parsed_obj = json.loads(line)
+                                                results.append(parsed_obj)
+                                            except json.JSONDecodeError:
+                                                # Skip invalid lines
+                                                continue
+                                        if results:
+                                            log.info(
+                                                f"Snapshot {snapshot_id[:8]}... ready (detected JSONL format "
+                                                f"with {len(results)} records) after {attempt + 1} attempt(s)"
+                                            )
+                                            return results
+                                    except Exception:
+                                        pass
+
+                                log.info(
+                                    f"Snapshot {snapshot_id[:8]}... JSON parse error at position {error_pos}: {error_msg}. "
+                                    f"Response length: {len(response_data)}. "
+                                    f"First 500 chars: {response_data[:500]}..."
+                                )
+                                # If it looks like JSON but parsing failed, might be truncated or malformed
+                                # Continue polling in case it's incomplete data
+                        else:
+                            # Doesn't look like JSON - might be a plain text status message
+                            log.info(
+                                f"Snapshot {snapshot_id[:8]}... string response (not JSON-like): "
+                                f"{response_data[:200]}..."
+                            )
+                            # Continue polling in case it's just a status message
+
+                # If response is a dict, check for status
+                elif isinstance(response_data, dict):
+                    status = response_data.get("status", "").lower()
+
+                    if status == "ready":
+                        # Extract data from response
+                        # Data might be in "data", "records", "results" keys
+                        snapshot_data = (
+                            response_data.get("data") or response_data.get("records") or response_data.get("results") or response_data
+                        )
+
+                        # If no data key, remove status/metadata fields and use remaining fields as data
+                        if snapshot_data is None:
+                            metadata_keys = (
+                                "status",
+                                "id",
+                                "snapshot_id",
+                                "created",
+                                "dataset_id",
+                                "customer_id",
+                                "cost",
+                                "initiation_type",
+                            )
+                            snapshot_data = {
+                                k: v
+                                for k, v in response_data.items()
+                                if k not in metadata_keys
+                            }
+
+                        # If still None, use entire response as data
+                        if snapshot_data is None:
+                            snapshot_data = response_data
+
+                        log.info(
+                            f"Snapshot {snapshot_id[:8]}... ready after {attempt + 1} attempt(s)"
+                        )
+
+                        # Ensure we return a list
+                        if isinstance(snapshot_data, list):
+                            return snapshot_data
+                        elif isinstance(snapshot_data, dict):
+                            # If single dict, wrap in list
+                            return [snapshot_data]
+                        else:
+                            # Other types, wrap in list
+                            return [snapshot_data] if snapshot_data is not None else []
+
+                    elif status == "failed":
+                        # Extract error message
+                        error_msg = None
+                        for key in ("error", "warning", "message", "detail", "details"):
+                            if key in response_data:
+                                error_value = response_data[key]
+                                if error_value:
+                                    error_msg = str(error_value)
+                                    break
+
+                        if not error_msg:
+                            error_msg = "Unknown error"
+
+                        log.info(f"Snapshot {snapshot_id[:8]}... failed: {error_msg}")
+                        raise RuntimeError(
+                            f"Snapshot {snapshot_id[:8]}... failed: {error_msg}"
+                        )
+
+                    elif status in ("running", "pending", "processing", "scheduled"):
+                        log.info(
+                            f"Snapshot {snapshot_id[:8]}... status: {status} "
+                            f"(attempt {attempt + 1}/{max_attempts})"
+                        )
+                    else:
+                        # Dict response but no status field or unknown status
+                        # Might be data wrapped in a dict - check if it looks like data
+                        if "status" not in response_data:
+                            log.info(
+                                f"Snapshot {snapshot_id[:8]}... dict response without status, "
+                                f"treating as data (attempt {attempt + 1}/{max_attempts})"
+                            )
+                            # Could be data - return it wrapped in list
+                            return [response_data] if response_data else []
+                        else:
+                            log.info(
+                                f"Snapshot {snapshot_id[:8]}... status: {status} "
+                                f"(attempt {attempt + 1}/{max_attempts})"
+                            )
+
+            elif response.status_code == 404:
+                error_msg = f"Snapshot {snapshot_id[:8]}... not found"
+                log.info(error_msg)
+                raise RuntimeError(error_msg)
+
+            else:
+                error_detail = extract_error_detail(response)
+                log.info(
+                    f"Error polling snapshot {snapshot_id[:8]}... "
+                    f"(status {response.status_code}): {error_detail}"
+                )
+                response.raise_for_status()
+
+        except RequestException as exc:
+            log.info(
+                f"Error polling snapshot {snapshot_id[:8]}...: {str(exc)}. "
+                f"Retrying (attempt {attempt + 1}/{max_attempts})"
+            )
+
+        # Wait before next attempt (except on last attempt)
+        if attempt < max_attempts - 1:
+            time.sleep(poll_interval)
+
+    # Timeout
+    raise RuntimeError(
+        f"Snapshot {snapshot_id[:8]}... did not complete within "
+        f"{max_attempts * poll_interval} seconds"
+    )

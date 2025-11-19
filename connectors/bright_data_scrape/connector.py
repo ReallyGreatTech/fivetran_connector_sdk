@@ -16,9 +16,6 @@ https://fivetran.com/docs/connectors/connector-sdk/best-practices
 import json
 from typing import Any, Dict, List, Optional
 
-# Bright Data SDK for web scraping functionality
-from brightdata import bdclient
-
 # Helper functions for data processing, validation, and schema management
 from helpers import (
     collect_all_fields,
@@ -60,6 +57,7 @@ def schema(_config: dict) -> List[Dict[str, Any]]:
             "primary_key": [
                 "url",
                 "result_index",
+                "_fivetran_synced",
             ],
         }
     ]
@@ -93,9 +91,9 @@ def update(
     # Validate the configuration to ensure it contains all required values
     validate_configuration(configuration=configuration)
 
-    # Initialize Bright Data client with API token
+    # Get API token and dataset_id
     api_token = configuration.get("api_token")
-    client = bdclient(api_token=api_token)
+    dataset_id = configuration.get("dataset_id")
 
     new_state = dict(state) if state else {}
 
@@ -105,7 +103,8 @@ def update(
 
         if urls:
             new_state = _sync_scrape_urls(
-                client=client,
+                api_token=api_token,
+                dataset_id=dataset_id,
                 configuration=configuration,
                 urls=urls,
                 state=new_state,
@@ -125,7 +124,8 @@ def update(
 
 
 def _sync_scrape_urls(
-    client: bdclient,
+    api_token: str,
+    dataset_id: str,
     configuration: Dict[str, Any],
     urls: List[str],
     state: Dict[str, Any],
@@ -133,14 +133,14 @@ def _sync_scrape_urls(
     """
     Fetch scrape results for the requested URLs and upsert them to Fivetran.
 
-    This function processes URLs in batch using the Bright Data SDK, which handles
-    parallel processing, async snapshot creation, and polling automatically.
-    The SDK maintains URL-to-result order for proper mapping.
+    This function triggers a scrape job via Bright Data REST API, polls for completion,
+    and processes the results. The API handles async snapshot creation and polling.
 
     Args:
-        client: Initialized Bright Data client instance
+        api_token: Bright Data API token
+        dataset_id: ID of the dataset to use for scraping
         configuration: Configuration dictionary containing scrape parameters
-        urls: List of URLs to scrape (processed in batch by SDK)
+        urls: List of URLs to scrape (processed in batch by API)
         state: Current connector state
 
     Returns:
@@ -155,25 +155,17 @@ def _sync_scrape_urls(
     format_param = configuration.get("format")
     method = configuration.get("method")
 
-    # Parse async_request configuration (defaults to True)
-    async_request = True
-    async_request_str = str(configuration.get("async_request", "")).lower()
-    if async_request_str in ("false", "0", "no"):
-        async_request = False
-
     # Fetch scrape results for all URLs in batch
-    # The Bright Data SDK can handle lists of URLs efficiently, processing them in parallel
-    # and managing async snapshot creation and polling automatically
-    url_payload = urls if len(urls) > 1 else urls[0]
+    # The Bright Data REST API processes URLs in batch and returns results in order
     try:
         scrape_results = perform_scrape(
-            client=client,
-            url=url_payload,
+            api_token=api_token,
+            dataset_id=dataset_id,
+            url=urls,
             country=country,
             data_format=data_format,
             format_param=format_param,
             method=method,
-            async_request=async_request,
         )
     except (RuntimeError, ValueError) as exc:
         # Log error and re-raise for proper error handling at the update level
@@ -185,31 +177,58 @@ def _sync_scrape_urls(
         scrape_results = [scrape_results]
 
     # Process and flatten results
-    # The SDK returns results in the same order as input URLs (one result per URL)
-    # Each result may contain multiple items if the scraped content has multiple elements
+    # The API can return:
+    # - An array where each element corresponds to a URL (one-to-one mapping)
+    # - An array where one URL produces multiple results (one-to-many mapping)
+    # - Each result may be an object or a list of objects
     processed_results: List[Dict[str, Any]] = []
 
-    # Process each result and match it to the corresponding URL by index
-    # The SDK maintains URL-to-result order when processing in batch
-    for url_idx, url in enumerate(urls):
-        # Get the result for this URL (by index)
-        if url_idx < len(scrape_results):
-            result = scrape_results[url_idx]
-
-            # Handle cases where one URL produces multiple results
-            if isinstance(result, list):
-                # Multiple results from one URL (e.g., multiple elements extracted)
+    # If we have multiple URLs, match results by index (one result per URL)
+    # If we have one URL but multiple results, process all results
+    if len(urls) == 1 and len(scrape_results) > 1:
+        # Single URL with multiple results - process all results
+        url = urls[0]
+        log.info(
+            f"Processing {len(scrape_results)} results from single URL. "
+            f"Each result will get a unique result_index (0 to {len(scrape_results) - 1})"
+        )
+        for result_idx, result in enumerate(scrape_results):
+            # Each result in the array is a separate item
+            if isinstance(result, dict):
+                # Extract URL from result if available (some APIs include input.url)
+                result_url = result.get("input", {}).get("url") or result.get("url") or url
+                processed_results.append(
+                    process_scrape_result(result, result_url, result_idx)
+                )
+                log.info(f"Processed result {result_idx} with URL: {result_url[:50]}...")
+            elif isinstance(result, list):
+                # Nested list - process each item
                 for item_idx, item in enumerate(result):
+                    result_url = item.get("input", {}).get("url") if isinstance(item, dict) else url
                     processed_results.append(
-                        process_scrape_result(item, url, item_idx)
+                        process_scrape_result(item, result_url or url, item_idx)
                     )
+    else:
+        # Multiple URLs or one-to-one mapping - match by index
+        for url_idx, url in enumerate(urls):
+            # Get the result for this URL (by index)
+            if url_idx < len(scrape_results):
+                result = scrape_results[url_idx]
+
+                # Handle cases where one URL produces multiple results
+                if isinstance(result, list):
+                    # Multiple results from one URL (e.g., multiple elements extracted)
+                    for item_idx, item in enumerate(result):
+                        processed_results.append(
+                            process_scrape_result(item, url, item_idx)
+                        )
+                else:
+                    # Single result per URL
+                    processed_results.append(process_scrape_result(result, url, 0))
             else:
-                # Single result per URL
-                processed_results.append(process_scrape_result(result, url, 0))
-        else:
-            # Fewer results than URLs (some URLs may have failed silently)
-            # Log and skip this URL
-            log.info(f"Warning: No result found for URL at index {url_idx}: {url}")
+                # Fewer results than URLs (some URLs may have failed silently)
+                # Log and skip this URL
+                log.info(f"Warning: No result found for URL at index {url_idx}: {url}")
 
     # Upsert processed results to Fivetran
     if processed_results:
@@ -225,10 +244,52 @@ def _sync_scrape_urls(
         # - The first argument is the name of the table to upsert the data into.
         # - The second argument is a dictionary containing the data to be upserted,
         #   where each key is a column name and the value is a list containing the row value.
+        # Note: Primary key fields are (url, result_index, _fivetran_synced)
+        # _fivetran_synced is automatically managed by Fivetran and added during upsert.
+        # url and result_index must always be present in each row with correct types.
+        primary_keys = {"url": str, "result_index": int}
         for result in processed_results:
-            row: Dict[str, List[Any]] = {
-                field: [result.get(field)] for field in all_fields
-            }
+            # Ensure primary keys are always present with correct types
+            # This is a safety check in case processing somehow corrupted the values
+            for pk, pk_type in primary_keys.items():
+                if pk not in result:
+                    log.info(f"Warning: Primary key '{pk}' missing from result, adding default value")
+                    result[pk] = pk_type() if pk_type == str else 0
+                else:
+                    # Ensure the type is correct - convert if necessary
+                    current_value = result[pk]
+                    if not isinstance(current_value, pk_type):
+                        try:
+                            if pk_type == str:
+                                result[pk] = str(current_value)
+                            elif pk_type == int:
+                                # Try to convert to int, handling JSON strings like "[0]"
+                                if isinstance(current_value, str):
+                                    # Remove brackets and quotes if it's a JSON string
+                                    cleaned = current_value.strip().strip('[]"\'')
+                                    result[pk] = int(cleaned) if cleaned.isdigit() else 0
+                                else:
+                                    result[pk] = int(current_value)
+                        except (ValueError, TypeError):
+                            log.info(f"Warning: Could not convert primary key '{pk}' to {pk_type.__name__}, using default")
+                            result[pk] = pk_type() if pk_type == str else 0
+
+            # Build row data, ensuring primary keys have correct types
+            row: Dict[str, List[Any]] = {}
+            for field in all_fields:
+                value = result.get(field)
+                # Explicitly ensure result_index is an integer before upsert
+                if field == "result_index":
+                    if isinstance(value, str):
+                        # Handle string values like "[0]" or "0"
+                        cleaned = value.strip().strip('[]"\'')
+                        value = int(cleaned) if cleaned.isdigit() else 0
+                    elif value is not None:
+                        value = int(value)
+                    else:
+                        value = 0
+                row[field] = [value]
+
             op.upsert(SCRAPE_TABLE, row)
 
         # Update state with sync information
