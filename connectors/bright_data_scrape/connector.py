@@ -149,12 +149,6 @@ def _sync_scrape_urls(
     if not urls:
         raise ValueError("scrape_url cannot be empty")
 
-    # Extract optional configuration parameters
-    country = configuration.get("country")
-    data_format = configuration.get("data_format")
-    format_param = configuration.get("format")
-    method = configuration.get("method")
-
     # Fetch scrape results for all URLs in batch
     # The Bright Data REST API processes URLs in batch and returns results in order
     try:
@@ -162,10 +156,6 @@ def _sync_scrape_urls(
             api_token=api_token,
             dataset_id=dataset_id,
             url=urls,
-            country=country,
-            data_format=data_format,
-            format_param=format_param,
-            method=method,
         )
     except (RuntimeError, ValueError) as exc:
         # Log error and re-raise for proper error handling at the update level

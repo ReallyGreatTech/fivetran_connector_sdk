@@ -2,7 +2,7 @@
 
 import json
 import time
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Union
 
 import requests
 from requests import RequestException
@@ -22,11 +22,6 @@ def perform_scrape(
     api_token: str,
     dataset_id: str,
     url: Union[str, List[str]],
-    country: Optional[str] = None,
-    data_format: Optional[str] = None,
-    format_param: Optional[str] = "json",
-    method: Optional[str] = None,
-    max_poll_attempts: int = 60,
     poll_interval: int = 30,
     timeout: int = DEFAULT_TIMEOUT_SECONDS,
     retries: int = 3,
@@ -37,16 +32,12 @@ def perform_scrape(
 
     This function triggers a scrape job via POST /datasets/v3/trigger, receives a snapshot_id,
     and polls GET /datasets/v3/snapshot/{snapshot_id} until the status is "ready" or "failed".
+    The endpoint handles polling internally, so we poll indefinitely until we receive a ready/failed status.
 
     Args:
         api_token: Bright Data API token
         dataset_id: ID of the dataset to use for scraping
         url: Single URL or list of URLs to scrape
-        country: Optional country code for geolocation targeting
-        data_format: Optional format for extracted data
-        format_param: Output format (default: "json")
-        method: Optional HTTP method (default: "GET")
-        max_poll_attempts: Maximum number of polling attempts
         poll_interval: Interval between polling attempts in seconds
         timeout: Request timeout in seconds
         retries: Number of retries for failed requests
@@ -92,10 +83,6 @@ def perform_scrape(
         api_token=api_token,
         dataset_id=dataset_id,
         payload=payload,
-        country=country,
-        data_format=data_format,
-        format_param=format_param,
-        method=method,
         timeout=timeout,
         retries=retries,
         backoff_factor=backoff_factor,
@@ -108,10 +95,8 @@ def perform_scrape(
     results = _poll_snapshot(
         api_token=api_token,
         snapshot_id=snapshot_id,
-        max_attempts=max_poll_attempts,
         poll_interval=poll_interval,
         timeout=timeout,
-        format_param=format_param,
     )
 
     # Normalize results to always be a list
@@ -128,10 +113,6 @@ def _trigger_scrape(
     api_token: str,
     dataset_id: str,
     payload: List[Dict[str, Any]],
-    country: Optional[str],
-    data_format: Optional[str],
-    format_param: Optional[str],
-    method: Optional[str],
     timeout: int,
     retries: int,
     backoff_factor: float,
@@ -160,10 +141,6 @@ def _trigger_scrape(
         "include_errors": "true",  # Include errors report with the results
     }
 
-    # Override format if format_param is provided
-    if format_param:
-        params["format"] = format_param
-
     # Add dataset-specific query parameters
     # For dataset_id gd_lyy3tktm25m4avu764, add discover_by and type parameters
     if dataset_id == "gd_lyy3tktm25m4avu764":
@@ -172,15 +149,9 @@ def _trigger_scrape(
 
     # Build request body - according to Bright Data API docs, body should be:
     # [{"url": "https://..."}, {"url": "https://..."}, ...]
-    # The API documentation shows that optional fields like country, data_format, method
-    # may not be supported in the body for all datasets, so we keep the body simple
-    # with just the URL objects as shown in the API examples
+    # The API documentation shows that the body should only contain URL objects
+    # as shown in the API examples
     body_payload = payload.copy()
-
-    # Note: Optional fields like country, data_format, method may be dataset-specific
-    # and are not included in the standard body format per Bright Data API docs
-    # If your dataset requires these, they may need to be passed as query parameters
-    # or configured differently - check your dataset documentation
 
     url_count = len(payload)
     log.info(
@@ -281,10 +252,8 @@ def _trigger_scrape(
 def _poll_snapshot(
     api_token: str,
     snapshot_id: str,
-    max_attempts: int,
     poll_interval: int,
     timeout: int,
-    format_param: Optional[str] = "json",
 ) -> Union[Dict[str, Any], List[Dict[str, Any]]]:
     """
     Poll the snapshot endpoint until status is "ready" or "failed".
@@ -294,16 +263,14 @@ def _poll_snapshot(
     Args:
         api_token: Bright Data API token
         snapshot_id: Snapshot ID to poll
-        max_attempts: Maximum number of polling attempts
         poll_interval: Interval between polling attempts in seconds
         timeout: Request timeout in seconds
-        format_param: Output format (default: "json")
 
     Returns:
         Snapshot data when ready (dict or list)
 
     Raises:
-        RuntimeError: If snapshot fails or polling times out
+        RuntimeError: If snapshot fails or request errors occur
     """
     headers = {
         "Authorization": f"Bearer {api_token}",
@@ -311,11 +278,12 @@ def _poll_snapshot(
 
     params: Dict[str, Any] = {
         "format": "json",
+        "include_errors": "true",
     }
-    if format_param:
-        params["format"] = format_param
 
-    for attempt in range(max_attempts):
+    attempt = 0
+    while True:
+        attempt += 1
         try:
             response = requests.get(
                 f"{BRIGHT_DATA_BASE_URL}/datasets/v3/snapshot/{snapshot_id}",
@@ -357,7 +325,7 @@ def _poll_snapshot(
                     if results:
                         log.info(
                             f"Snapshot {snapshot_id[:8]}... ready (JSONL format with {len(results)} records) "
-                            f"after {attempt + 1} attempt(s)"
+                            f"after {attempt} attempt(s)"
                         )
                         return results
 
@@ -377,7 +345,7 @@ def _poll_snapshot(
                 if isinstance(response_data, list):
                     log.info(
                         f"Snapshot {snapshot_id[:8]}... ready (array response with {len(response_data)} records) "
-                        f"after {attempt + 1} attempt(s)"
+                        f"after {attempt} attempt(s)"
                     )
                     return response_data
 
@@ -391,7 +359,7 @@ def _poll_snapshot(
                     ):
                         log.info(
                             f"Snapshot {snapshot_id[:8]}... still processing: {response_data[:200]}... "
-                            f"(attempt {attempt + 1}/{max_attempts})"
+                            f"(attempt {attempt})"
                         )
                         # Continue to sleep and retry
                     else:
@@ -404,7 +372,7 @@ def _poll_snapshot(
                                 log.info(
                                     f"Snapshot {snapshot_id[:8]}... ready (parsed JSON string response, "
                                     f"{len(parsed_data) if isinstance(parsed_data, list) else 1} records) "
-                                    f"after {attempt + 1} attempt(s)"
+                                    f"after {attempt} attempt(s)"
                                 )
                                 # Normalize to list format
                                 if isinstance(parsed_data, list):
@@ -435,7 +403,7 @@ def _poll_snapshot(
                                         if results:
                                             log.info(
                                                 f"Snapshot {snapshot_id[:8]}... ready (detected JSONL format "
-                                                f"with {len(results)} records) after {attempt + 1} attempt(s)"
+                                                f"with {len(results)} records) after {attempt} attempt(s)"
                                             )
                                             return results
                                     except Exception:
@@ -490,7 +458,7 @@ def _poll_snapshot(
                             snapshot_data = response_data
 
                         log.info(
-                            f"Snapshot {snapshot_id[:8]}... ready after {attempt + 1} attempt(s)"
+                            f"Snapshot {snapshot_id[:8]}... ready after {attempt} attempt(s)"
                         )
 
                         # Ensure we return a list
@@ -524,7 +492,7 @@ def _poll_snapshot(
                     elif status in ("running", "pending", "processing", "scheduled"):
                         log.info(
                             f"Snapshot {snapshot_id[:8]}... status: {status} "
-                            f"(attempt {attempt + 1}/{max_attempts})"
+                            f"(attempt {attempt})"
                         )
                     else:
                         # Dict response but no status field or unknown status
@@ -532,14 +500,14 @@ def _poll_snapshot(
                         if "status" not in response_data:
                             log.info(
                                 f"Snapshot {snapshot_id[:8]}... dict response without status, "
-                                f"treating as data (attempt {attempt + 1}/{max_attempts})"
+                                f"treating as data (attempt {attempt})"
                             )
                             # Could be data - return it wrapped in list
                             return [response_data] if response_data else []
                         else:
                             log.info(
                                 f"Snapshot {snapshot_id[:8]}... status: {status} "
-                                f"(attempt {attempt + 1}/{max_attempts})"
+                                f"(attempt {attempt})"
                             )
 
             elif response.status_code == 404:
@@ -558,15 +526,9 @@ def _poll_snapshot(
         except RequestException as exc:
             log.info(
                 f"Error polling snapshot {snapshot_id[:8]}...: {str(exc)}. "
-                f"Retrying (attempt {attempt + 1}/{max_attempts})"
+                f"Retrying (attempt {attempt})"
             )
 
-        # Wait before next attempt (except on last attempt)
-        if attempt < max_attempts - 1:
-            time.sleep(poll_interval)
-
-    # Timeout
-    raise RuntimeError(
-        f"Snapshot {snapshot_id[:8]}... did not complete within "
-        f"{max_attempts * poll_interval} seconds"
-    )
+        # Wait before next attempt
+        # until we receive a ready/failed status or an error occurs
+        time.sleep(poll_interval)
