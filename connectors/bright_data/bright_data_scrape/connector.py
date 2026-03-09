@@ -7,6 +7,7 @@ and the Best Practices documentation
 
 # For reading configuration from a JSON file
 import json
+from urllib.parse import urlparse
 
 # Helper functions for data processing, validation, and schema management
 from helpers import (
@@ -92,12 +93,17 @@ def parse_scrape_urls(scrape_url_input):
         ]
 
     if isinstance(scrape_url_input, str):
-        # Try parsing as JSON first
-        parsed = json.loads(scrape_url_input)
-        if isinstance(parsed, list):
-            return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
-        if isinstance(parsed, str) and parsed.strip():
-            return [parsed.strip()]
+        # Try parsing as JSON first (e.g. '["https://..."]' or '"https://..."')
+        try:
+            parsed = json.loads(scrape_url_input)
+            if isinstance(parsed, list):
+                return [item.strip() for item in parsed if isinstance(item, str) and item.strip()]
+            if isinstance(parsed, str) and parsed.strip():
+                return [parsed.strip()]
+        except (json.JSONDecodeError, TypeError):
+            # Not valid JSON – treat as plain string (single URL or delimited list)
+            pass
+
         # Try comma-separated format
         if "," in scrape_url_input:
             return [item.strip() for item in scrape_url_input.split(",") if item.strip()]
@@ -106,10 +112,18 @@ def parse_scrape_urls(scrape_url_input):
         if "\n" in scrape_url_input:
             return [item.strip() for item in scrape_url_input.split("\n") if item.strip()]
 
-        # Single URL
+        # Single URL (or invalid string – downstream validation can filter)
         return [scrape_url_input.strip()] if scrape_url_input.strip() else []
 
     return []
+
+
+def _is_valid_url(url: str) -> bool:
+    """Return True if the string has a valid URL structure (scheme and netloc)."""
+    if not url or not isinstance(url, str) or not url.strip():
+        return False
+    parsed = urlparse(url.strip())
+    return bool(parsed.scheme and parsed.netloc)
 
 
 def sync_scrape_urls(api_token, dataset_id, urls, state):
@@ -121,7 +135,18 @@ def sync_scrape_urls(api_token, dataset_id, urls, state):
         urls: List of URLs to scrape (processed in batch by API).
         state: State dictionary for tracking sync progress.
     """
-    log.info(f"Starting scrape sync for {len(urls)} URL(s)")
+    valid_urls = []
+    for url in urls:
+        if _is_valid_url(url):
+            valid_urls.append(url.strip())
+        else:
+            log.warning("Skipping invalid URL: %r", url)
+
+    if not valid_urls:
+        log.warning("No valid URLs to sync after filtering invalid entries")
+        raise RuntimeError("No valid URLs configured for sync")
+
+    log.info(f"Starting scrape sync for {len(valid_urls)} URL(s)")
 
     # Fetch scrape results for all URLs
     # The Bright Data REST API processes URLs and returns results in order
@@ -130,14 +155,14 @@ def sync_scrape_urls(api_token, dataset_id, urls, state):
         scrape_results = perform_scrape(
             api_token=api_token,
             dataset_id=dataset_id,
-            url=urls,
+            url=valid_urls,
             extra_query_params={"discover_by": "profile_url", "type": "discover_new"},
         )
     else:
         scrape_results = perform_scrape(
             api_token=api_token,
             dataset_id=dataset_id,
-            url=urls,
+            url=valid_urls,
         )
 
     # Normalize results to always be a list
@@ -149,7 +174,7 @@ def sync_scrape_urls(api_token, dataset_id, urls, state):
         return
 
     # Process and flatten results
-    processed_results = process_scrape_results(scrape_results, urls)
+    processed_results = process_scrape_results(scrape_results, valid_urls)
 
     if not processed_results:
         log.warning("No processed results to upsert")
@@ -165,7 +190,7 @@ def sync_scrape_urls(api_token, dataset_id, urls, state):
     process_and_upsert_results(processed_results, all_fields)
 
     # Update state with sync information
-    state["last_scrape_urls"] = urls
+    state["last_scrape_urls"] = valid_urls
     state["last_scrape_count"] = len(processed_results)
 
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
