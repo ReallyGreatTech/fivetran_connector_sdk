@@ -70,8 +70,12 @@ def update(configuration: dict, state: dict):
     urls = parse_scrape_urls(scrape_url_input)
 
     if not urls:
-        log.warning("No URLs provided in configuration")
-        raise RuntimeError("No URLs configured for sync")
+        log.severe(
+            "No URLs provided in configuration; scrape_url input: %r", scrape_url_input
+        )
+        raise RuntimeError(
+            "No URLs provided in configuration; scrape_url input: %r", scrape_url_input
+        )
 
     sync_scrape_urls(api_token, dataset_id, urls, state)
 
@@ -290,21 +294,9 @@ def process_and_upsert_results(processed_results, all_fields):
                             f"Could not convert primary key '{pk}' to {pk_type.__name__}"
                         )
                         result[pk] = pk_type() if pk_type == str else 0
-
-        # Build row data, ensuring primary keys have correct types
         row = {}
         for field in all_fields:
-            value = result.get(field)
-            # Explicitly ensure result_index is an integer before upsert
-            if field == "result_index":
-                if isinstance(value, str):
-                    cleaned = value.strip().strip("[]\"'")
-                    value = int(cleaned) if cleaned.isdigit() else 0
-                elif value is not None:
-                    value = int(value)
-                else:
-                    value = 0
-            row[field] = value
+            row[field] = result.get(field)
 
         # The 'upsert' operation is used to insert or update data in the destination table.
         # The first argument is the name of the destination table.
