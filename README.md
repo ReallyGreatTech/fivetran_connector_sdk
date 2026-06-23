@@ -30,7 +30,7 @@ Connector SDK provides native support for many Fivetran features and relies on e
 
 ## Requirements
 
-- Python version ≥3.10 and ≤3.13
+- Python version ≥3.10 and ≤3.14
 - Operating system:
   - Windows: 10 or later (64-bit only)
   - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
@@ -87,4 +87,4 @@ As with other new connectors, SDK connectors have a [14-day trial period](https:
 
 ## Maintenance
 
-The `connector_sdk` repository is actively maintained by Fivetran Developers. Reach out to our [Support team](https://support.fivetran.com/hc/en-us) for any inquiries.
+The `connector_sdk` repository is actively maintained by Fivetran developers. Reach out to our [Support team](https://support.fivetran.com/hc/en-us) for any inquiries.
