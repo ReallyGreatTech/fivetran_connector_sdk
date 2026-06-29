@@ -6,7 +6,7 @@ Keycloak is an open-source identity and access management solution that provides
 
 ## Requirements
 
-- [Supported Python versions](https://github.com/fivetran/fivetran_connector_sdk/blob/main/README.md#requirements)
+- [Supported Python versions](https://github.com/fivetran/connector_sdk/blob/main/README.md#requirements)
 - Operating system:
   - Windows: 10 or later (64-bit only)
   - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
@@ -14,7 +14,18 @@ Keycloak is an open-source identity and access management solution that provides
 
 ## Getting started
 
-Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connectors/connector-sdk/setup-guide) to get started.
+Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) to get started.
+
+To initialize a new Connector SDK project using this connector as a starting point, run:
+
+```bash
+fivetran init <project-path> --template connectors/keycloak
+```
+`fivetran init` initializes a new Connector SDK project by setting up the project structure, configuration files, and a connector you can run immediately with `fivetran debug`.
+If you do not specify a project path, Fivetran creates the project in your current directory.
+For more information on `fivetran init`, refer to the [Connector SDK `init` documentation](https://fivetran.com/docs/connector-sdk/setup-guide#createyourcustomconnector).
+
+> Note: Ensure you have updated the `configuration.json` file with the necessary parameters before running `fivetran debug`. See the [Configuration file](#configuration-file) section for details on the required configuration parameters.
 
 ## Features
 
@@ -114,7 +125,7 @@ The connector implements comprehensive error handling with the following strateg
 - Graceful degradation - If optional resources like events or admin-events are unavailable, the connector logs warnings and continues with other tables
 - Authentication failures - Immediately fails on HTTP 401 (invalid token) and HTTP 403 (insufficient permissions) with actionable error messages
 
-All errors are logged using the Fivetran SDK logging framework with appropriate severity levels (warning for retryable errors, severe for fatal errors).
+All errors are logged using the Fivetran SDK logging framework with appropriate severity levels (warning for retryable errors, error for fatal errors).
 
 ## Tables created
 

@@ -6,14 +6,25 @@ This connector fetches data from YugabyteDB database and syncs it to Fivetran de
 YugabyteDB is particularly popular for IoT sensor data, real-time analytics, time-series monitoring, and distributed OLTP applications. This example demonstrates syncing IoT sensor data from an industrial equipment monitoring system, which is a common use case for YugabyteDB deployments.
 
 ## Requirements
-- [Supported Python versions](https://github.com/fivetran/fivetran_connector_sdk/blob/main/README.md#requirements)
+- [Supported Python versions](https://github.com/fivetran/connector_sdk/blob/main/README.md#requirements)
 - Operating system:
   - Windows: 10 or later (64-bit only)
   - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
   - Linux: Distributions such as Ubuntu 20.04 or later, Debian 10 or later, or Amazon Linux 2 or later (arm64 or x86_64)
 
 ## Getting started
-Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connectors/connector-sdk/setup-guide) to get started.
+Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) to get started.
+
+To initialize a new Connector SDK project using this connector as a starting point, run:
+
+```bash
+fivetran init <project-path> --template connectors/yugabyte_db
+```
+`fivetran init` initializes a new Connector SDK project by setting up the project structure, configuration files, and a connector you can run immediately with `fivetran debug`.
+If you do not specify a project path, Fivetran creates the project in your current directory.
+For more information on `fivetran init`, refer to the [Connector SDK `init` documentation](https://fivetran.com/docs/connector-sdk/setup-guide#createyourcustomconnector).
+
+> Note: Ensure you have updated the `configuration.json` file with the necessary parameters before running `fivetran debug`. See the [Configuration file](#configuration-file) section for details on the required configuration parameters.
 
 ## Features
 - Automatic table discovery from specified schema
@@ -95,7 +106,7 @@ The connector implements comprehensive error handling with specific exception ty
 - Query errors - `psycopg2.ProgrammingError` caught with guidance about table existence and permissions
 - General database errors - Other `psycopg2.Error` exceptions caught and logged
 - Graceful cleanup - Connection closure in finally block with error handling for cleanup failures
-- Detailed logging - All errors logged using SDK logging framework (`log.severe()`, `log.warning()`) before raising
+- Detailed logging - All errors logged using SDK logging framework (`log.error()`, `log.warning()`) before raising
 - Descriptive error messages - Runtime exceptions include context about what failed and how to fix it
 
 Refer to the `create_connection()` function for connection error handling and the `update()` function for comprehensive sync error handling.

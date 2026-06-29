@@ -2,9 +2,9 @@
 This connector fetches data from Courier API endpoints including messages,
 audiences, brands, audit events, lists, and notifications.
 See the Technical Reference documentation
-(https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
+(https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
 and the Best Practices documentation
-(https://fivetran.com/docs/connectors/connector-sdk/best-practices)
+(https://fivetran.com/docs/connector-sdk/best-practices)
 for details
 """
 
@@ -98,14 +98,14 @@ def make_api_request(url: str, headers: dict):
                     time.sleep(delay)
                     continue
                 else:
-                    log.severe(
+                    log.error(
                         f"Failed to fetch data after {__MAX_RETRIES} attempts. Last status: {response.status_code} - {response.text}"
                     )
                     raise RuntimeError(
                         f"API returned {response.status_code} after {__MAX_RETRIES} attempts: {response.text}"
                     )
             else:
-                log.severe(
+                log.error(
                     f"API request failed with status {response.status_code}: {response.text}"
                 )
                 raise RuntimeError(f"API returned {response.status_code}: {response.text}")
@@ -119,7 +119,7 @@ def make_api_request(url: str, headers: dict):
                 time.sleep(delay)
                 continue
             else:
-                log.severe(f"Network error after {__MAX_RETRIES} attempts", e)
+                log.error(f"Network error after {__MAX_RETRIES} attempts", e)
                 raise RuntimeError(f"Network error after {__MAX_RETRIES} attempts: {str(e)}")
     return None
 
@@ -194,7 +194,7 @@ def fetch_brands(api_key: str, state: dict):
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
 
     log.info(f"Upserted {record_count} brands, skipped {skipped_count} unchanged brands")
@@ -251,7 +251,7 @@ def fetch_audiences(api_key: str, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
         if not has_more:
@@ -308,7 +308,7 @@ def fetch_audit_events(api_key: str, state: dict):
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
 
     log.info(f"Upserted {record_count} audit events, skipped {skipped_count} unchanged events")
@@ -319,7 +319,7 @@ def fetch_audit_events(api_key: str, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
     return state
 
@@ -369,7 +369,7 @@ def fetch_lists(api_key: str, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
         if not has_more:
@@ -425,7 +425,7 @@ def fetch_messages(api_key: str, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
         if not has_more:
@@ -481,7 +481,7 @@ def fetch_notifications(api_key: str, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
         if not has_more:
@@ -536,7 +536,7 @@ def fetch_tenants(api_key: str, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
         if not has_more:
@@ -551,7 +551,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -570,7 +570,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -592,7 +592,7 @@ def update(configuration: dict, state: dict):
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
 
     log.info("Completed sync for all Courier API endpoints")

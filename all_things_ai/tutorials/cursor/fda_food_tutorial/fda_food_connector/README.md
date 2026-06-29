@@ -184,12 +184,12 @@ This connector follows Fivetran Connector SDK best practices:
 
 - `INFO`: Status updates, progress, cursors
 - `WARNING`: Rate limits, potential issues
-- `SEVERE`: Errors, failures, critical issues
+- `ERROR`: Errors, failures, critical issues
 
 ## API Reference
 
 - [Fivetran Connector SDK Documentation](https://fivetran.com/docs/connector-sdk)
-- [SDK Examples Repository](https://github.com/fivetran/fivetran_connector_sdk/tree/main/examples)
+- [SDK Examples Repository](https://github.com/fivetran/connector_sdk/tree/main/examples)
 - [Technical Reference](https://fivetran.com/docs/connector-sdk/technical-reference)
 - [Best Practices Guide](https://fivetran.com/docs/connector-sdk/best-practices)
 - [FDA Food Enforcement API](https://open.fda.gov/apis/food-enforcement/)

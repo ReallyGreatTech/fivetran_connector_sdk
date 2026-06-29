@@ -1,6 +1,6 @@
 """This connector syncs Employee, Leave Transactions, and Attendance data from greytHR API to Fivetran destination.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -62,7 +62,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -93,7 +93,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -145,23 +145,21 @@ def get_access_token(api_username, api_password, greythr_domain):
 
                 # Validate that access_token is present in the response
                 if not access_token:
-                    log.severe("Access token missing from authentication response")
+                    log.error("Access token missing from authentication response")
                     raise RuntimeError("Access token missing from authentication response")
 
                 log.info("Successfully obtained access token")
                 return access_token
 
             if response.status_code == 403:
-                log.severe("Authentication failed: Invalid API credentials")
+                log.error("Authentication failed: Invalid API credentials")
                 raise RuntimeError(f"Authentication failed: {response.text}")
 
             if response.status_code in [429, 500, 502, 503, 504]:
                 handle_retryable_error(attempt, response.status_code, "Authentication")
                 continue
 
-            log.severe(
-                f"Unexpected authentication error: {response.status_code} - {response.text}"
-            )
+            log.error(f"Unexpected authentication error: {response.status_code} - {response.text}")
             raise RuntimeError(f"Authentication error: {response.status_code} - {response.text}")
 
         except requests.exceptions.Timeout:
@@ -276,7 +274,7 @@ def handle_auth_errors(response, headers, api_username, api_password, greythr_do
             return None
         raise RuntimeError(f"Authentication failed: {response.text}")
     if response.status_code == 403:
-        log.severe(f"Access forbidden: {response.text}")
+        log.error(f"Access forbidden: {response.text}")
         raise RuntimeError(f"Access forbidden: {response.text}")
 
 
@@ -316,7 +314,7 @@ def handle_unexpected_error(response):
     Raises:
         RuntimeError: For unexpected errors.
     """
-    log.severe(f"Unexpected API error: {response.status_code} - {response.text}")
+    log.error(f"Unexpected API error: {response.status_code} - {response.text}")
     raise RuntimeError(f"API error: {response.status_code} - {response.text}")
 
 
@@ -337,9 +335,7 @@ def handle_retryable_error(attempt, status_code, operation_name):
         )
         time.sleep(delay)
     else:
-        log.severe(
-            f"{operation_name} failed after {__MAX_RETRIES} attempts. Status: {status_code}"
-        )
+        log.error(f"{operation_name} failed after {__MAX_RETRIES} attempts. Status: {status_code}")
         raise RuntimeError(f"{operation_name} failed after {__MAX_RETRIES} attempts")
 
 
@@ -359,7 +355,7 @@ def handle_timeout_error(attempt, operation_name):
         )
         time.sleep(delay)
     else:
-        log.severe(f"{operation_name} timed out after {__MAX_RETRIES} attempts")
+        log.error(f"{operation_name} timed out after {__MAX_RETRIES} attempts")
         raise RuntimeError(f"{operation_name} timed out after {__MAX_RETRIES} attempts")
 
 
@@ -380,7 +376,7 @@ def handle_request_exception(attempt, operation_name, error):
         )
         time.sleep(delay)
     else:
-        log.severe(f"{operation_name} failed after {__MAX_RETRIES} attempts")
+        log.error(f"{operation_name} failed after {__MAX_RETRIES} attempts")
         raise RuntimeError(f"{operation_name} failed: {str(error)}")
 
 
@@ -404,7 +400,7 @@ def handle_token_expiration(headers, api_username, api_password, greythr_domain,
         headers["ACCESS-TOKEN"] = new_token
         return True
 
-    log.severe("Authentication failed - unable to refresh token")
+    log.error("Authentication failed - unable to refresh token")
     return False
 
 
@@ -487,7 +483,7 @@ def sync_employees(greythr_domain, access_token, state, api_username, api_passwo
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
     log.info(f"Completed employee sync. Last modified: {last_modified}")
@@ -580,7 +576,7 @@ def sync_leave_transactions(
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
         current_start = current_end + timedelta(days=1)
@@ -685,7 +681,7 @@ def sync_attendance_insights(
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
         current_start = current_end + timedelta(days=1)
