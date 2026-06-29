@@ -1,7 +1,7 @@
 """MailerLite Connector for Fivetran - fetches subscriber, group, campaign, and field data from MailerLite API.
 This connector demonstrates how to fetch data from MailerLite REST API and upsert it into destination using the Fivetran Connector SDK.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -119,7 +119,7 @@ def make_api_request(url: str, headers: dict, params: Optional[dict] = None) -> 
                 log.warning(f"Request timeout for URL: {url}. Retrying in {delay} seconds...")
                 time.sleep(delay)
                 continue
-            log.severe(f"Request timeout for URL: {url}")
+            log.error(f"Request timeout for URL: {url}")
             raise
         except requests.exceptions.HTTPError as e:
             is_retryable_error = response and (
@@ -133,10 +133,10 @@ def make_api_request(url: str, headers: dict, params: Optional[dict] = None) -> 
                 )
                 time.sleep(delay)
                 continue
-            log.severe(f"HTTP error for URL: {url}: {e}")
+            log.error(f"HTTP error for URL: {url}: {e}")
             raise
         except (requests.exceptions.RequestException, ValueError) as e:
-            log.severe(f"Request failed for URL: {url}: {e}")
+            log.error(f"Request failed for URL: {url}: {e}")
             raise
 
     raise requests.exceptions.RequestException(
@@ -278,7 +278,7 @@ def checkpoint_if_needed(
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
 
 
@@ -367,7 +367,7 @@ def sync_paginated_data(
             page, cursor = update_pagination_state(pagination_type, page, cursor, next_cursor)
 
         except requests.RequestException as e:
-            log.severe(f"API request error syncing {table_name}: {e}")
+            log.error(f"API request error syncing {table_name}: {e}")
             raise
 
     if enable_incremental:
@@ -384,7 +384,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -416,7 +416,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -479,17 +479,17 @@ def update(configuration: dict, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(new_state)
 
     except requests.exceptions.RequestException as e:
-        log.severe(f"Network/API error during sync: {e}")
+        log.error(f"Network/API error during sync: {e}")
         raise
     except ValueError as e:
-        log.severe(f"Value error during sync: {e}")
+        log.error(f"Value error during sync: {e}")
         raise
     except Exception as e:
-        log.severe(f"Unexpected error during sync: {e}")
+        log.error(f"Unexpected error during sync: {e}")
         raise
 
 
@@ -535,7 +535,7 @@ def sync_groups(headers: dict, state: dict):
                 # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
                 # from the correct position in case of next sync or interruptions.
                 # Learn more about how and where to checkpoint by reading our best practices documentation
-                # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+                # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
                 op.checkpoint(state)
 
             links = response_data.get("links", {})
@@ -545,7 +545,7 @@ def sync_groups(headers: dict, state: dict):
             page += 1
 
         except requests.exceptions.RequestException as e:
-            log.severe(f"Error syncing groups: {e}")
+            log.error(f"Error syncing groups: {e}")
             raise
 
     log.info(f"Synced {groups_synced} groups")
@@ -594,10 +594,10 @@ def sync_group_subscribers(headers: dict, group_id: str):
                 break
 
         except requests.exceptions.RequestException as e:
-            log.severe(f"Network/API error syncing group subscribers for group {group_id}: {e}")
+            log.error(f"Network/API error syncing group subscribers for group {group_id}: {e}")
             raise
         except (ValueError, TypeError) as e:
-            log.severe(f"Data parsing error syncing group subscribers for group {group_id}: {e}")
+            log.error(f"Data parsing error syncing group subscribers for group {group_id}: {e}")
             raise
 
     log.info(f"Synced {group_subscribers_synced} subscribers for group {group_id}")

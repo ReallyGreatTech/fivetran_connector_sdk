@@ -1,7 +1,7 @@
 """This is an example connector to sync data from RethinkDB using Fivetran Connector SDK.
 RethinkDB is an open-source database designed for real-time applications with features like changefeeds for live data updates.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -69,7 +69,7 @@ def handle_rethinkdb_error(
                 error_msg = f"{error_type} during {operation_name}: {str(e)}"
 
                 if raise_error:
-                    log.severe(error_msg)
+                    log.error(error_msg)
                     raise RuntimeError(f"{operation_name} failed: {str(e)}")
                 else:
                     log.warning(error_msg)
@@ -116,13 +116,13 @@ def connect_to_rethinkdb(configuration: dict):
 
         except ReqlAuthError as e:
             # Don't retry authentication failures - these are permanent errors
-            log.severe(f"Authentication failed for RethinkDB: {str(e)}")
+            log.error(f"Authentication failed for RethinkDB: {str(e)}")
             raise RuntimeError(f"Unable to authenticate with RethinkDB: {str(e)}")
 
         except (ReqlDriverError, ConnectionError, OSError) as e:
             # Retry transient network/connection errors
             if attempt == __MAX_RETRIES - 1:
-                log.severe(f"Failed to connect after {__MAX_RETRIES} attempts: {str(e)}")
+                log.error(f"Failed to connect after {__MAX_RETRIES} attempts: {str(e)}")
                 raise RuntimeError(f"Unable to establish RethinkDB connection: {str(e)}")
 
             sleep_time = min(60, 2**attempt)
@@ -133,7 +133,7 @@ def connect_to_rethinkdb(configuration: dict):
 
         except (ValueError, TypeError) as e:
             # Don't retry configuration errors - these are permanent errors
-            log.severe(f"Configuration error: {str(e)}")
+            log.error(f"Configuration error: {str(e)}")
             raise RuntimeError(f"Unable to establish RethinkDB connection: {str(e)}")
 
 
@@ -304,7 +304,7 @@ def sync_table_data(conn, database: str, table_name: str, state: dict) -> int:
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
             log.info(
                 f"Checkpointed after processing {records_processed} records from {table_name}"
@@ -319,7 +319,7 @@ def sync_table_data(conn, database: str, table_name: str, state: dict) -> int:
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
 
     if records_processed == 0 and last_sync_timestamp:
@@ -334,7 +334,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -352,7 +352,7 @@ def schema(configuration: dict):
         return schema_definition
 
     except (ReqlOpFailedError, ReqlDriverError, ReqlRuntimeError, ReqlAuthError) as e:
-        log.severe(f"Error generating schema: {str(e)}")
+        log.error(f"Error generating schema: {str(e)}")
         raise RuntimeError(f"Schema generation failed: {str(e)}")
 
     finally:
@@ -364,7 +364,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -387,7 +387,7 @@ def update(configuration: dict, state: dict):
         )
 
     except (ReqlOpFailedError, ReqlDriverError, ReqlRuntimeError, ReqlAuthError) as e:
-        log.severe(f"Error during sync: {str(e)}")
+        log.error(f"Error during sync: {str(e)}")
         raise RuntimeError(f"Failed to sync data from RethinkDB: {str(e)}")
 
     finally:

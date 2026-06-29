@@ -2,9 +2,9 @@
 This connector extracts data from Docusign eSignature API to enable
 analytics for Sales, Legal and other departments and teams.
 See the Technical Reference documentation:
-https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
 and the Best Practices documentation:
-https://fivetran.com/docs/connectors/connector-sdk/best-practices
+https://fivetran.com/docs/connector-sdk/best-practices
 for details.
 """
 
@@ -34,7 +34,6 @@ import json
 
 # For handling retries and delays
 import time
-
 
 __DEFAULT_START_DATE = "2020-01-01T00:00:00.000Z"
 __REQUEST_TIMEOUT_SECONDS = 30
@@ -66,7 +65,7 @@ def schema(configuration: dict):
     connector delivers.
     See the technical reference documentation for more details on the schema
     function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for
         the connector.
@@ -273,16 +272,16 @@ def fetch_envelopes(configuration: dict, state: Dict[str, Any]):
 
         except requests.exceptions.HTTPError as exc:
             if exc.response.status_code == 401:  # Check specifically for a 401 Unauthorized error
-                log.severe(
+                log.error(
                     "Received 401 Unauthorized. Access token is likely expired. Aborting fetch."
                 )
                 break
             else:
-                log.severe(f"Failed to fetch envelopes with HTTP error: {exc}")
+                log.error(f"Failed to fetch envelopes with HTTP error: {exc}")
                 break
 
         except Exception as exc:
-            log.severe(f"Failed to fetch envelopes: {exc}")
+            log.error(f"Failed to fetch envelopes: {exc}")
             raise RuntimeError(f"Failed to fetch envelopes: {exc}")
 
     log.info(f"Fetched {total_count} envelopes")
@@ -445,16 +444,16 @@ def fetch_templates(configuration: dict, state: Dict[str, Any]):
 
         except requests.exceptions.HTTPError as exc:
             if exc.response.status_code == 401:  # Check specifically for a 401 Unauthorized error
-                log.severe(
+                log.error(
                     "Received 401 Unauthorized. Access token is likely expired. Aborting fetch."
                 )
                 break
             else:
-                log.severe(f"Failed to fetch templates with HTTP error: {exc}")
+                log.error(f"Failed to fetch templates with HTTP error: {exc}")
                 break
 
         except Exception as exc:
-            log.severe(
+            log.error(
                 f"Failed to fetch templates: {exc}"
             )  # If a non-HTTP exception occurs, break the loop to avoid infinite calls
             raise RuntimeError(f"Failed to fetch templates: {exc}")
@@ -755,7 +754,7 @@ def update(configuration: dict, state: Dict[str, Any]):
     Fivetran during each sync.
     See the technical reference documentation for more details on the update
     function
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: A dictionary containing Docusign API connection details
         state: A dictionary containing state information from previous runs
@@ -781,7 +780,7 @@ def update(configuration: dict, state: Dict[str, Any]):
                 # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
                 # from the correct position in case of next sync or interruptions.
                 # Learn more about how and where to checkpoint by reading our best practices documentation
-                # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+                # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
                 op.checkpoint(state)
 
         log.info(f"Total processed envelopes: {envelope_count}")
@@ -793,7 +792,7 @@ def update(configuration: dict, state: Dict[str, Any]):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(new_state)
 
     except Exception as exc:

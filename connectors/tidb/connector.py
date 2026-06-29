@@ -1,8 +1,8 @@
 """
 This example connector enables incremental data synchronization from TiDB databases,
 including support for vector embeddings stored as JSON columns.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # Import required classes from fivetran_connector_sdk
@@ -31,7 +31,6 @@ from datetime import datetime, timezone
 
 # For time delays during retries
 import time
-
 
 # Module-level constants
 __TIDB_CONNECTION_KEYS = ["TIDB_HOST", "TIDB_USER", "TIDB_PASS", "TIDB_PORT", "TIDB_DATABASE"]
@@ -120,7 +119,7 @@ def schema(configuration: Dict[str, Any]) -> List[Dict[str, Any]]:
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
 
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
@@ -237,7 +236,7 @@ def normalize_timestamp_field(row_data: Dict[str, Any], field_name: str, table_n
                     parsed = parsed.replace(tzinfo=timezone.utc)
                 row_data[field_name] = parsed
             except Exception:
-                log.fine("Could not parse %s value for table %s: %s", field_name, table_name, val)
+                log.debug("Could not parse %s value for table %s: %s", field_name, table_name, val)
 
 
 def parse_vector_column(row_data: Dict[str, Any], table_name: str, configuration: Dict[str, Any]):
@@ -261,7 +260,7 @@ def parse_vector_column(row_data: Dict[str, Any], table_name: str, configuration
             if emb_list is not None:
                 row_data[embedding_column] = emb_list
     except Exception:
-        log.fine(
+        log.debug(
             "Skipping vector parse for table %s due to malformed VECTOR_TABLES_DATA", table_name
         )
 
@@ -433,7 +432,7 @@ def process_and_upsert_rows(
 
         except Exception as row_err:
             # Log row-level errors and continue processing other rows
-            log.severe(f"Error processing row for table {table_name}: {row_err}")
+            log.error(f"Error processing row for table {table_name}: {row_err}")
 
             # Store sample of problematic row for debugging
             try:
@@ -451,7 +450,7 @@ def process_and_upsert_rows(
             except Exception as sample_row_err:
                 # If storing the error metadata fails (e.g., due to serialization issues), ignore the error.
                 # This is non-critical and should not interrupt processing of other rows.
-                log.fine(
+                log.debug(
                     "Ignoring error while storing sample row for table %s: %s",
                     table_name,
                     sample_row_err,
@@ -502,7 +501,7 @@ def fetch_and_upsert_data(
         page = 0
         query, params = build_incremental_query(table_name, last_created)
     except Exception as e:
-        log.severe(f"Failed to build query for table {table_name}: {e}")
+        log.error(f"Failed to build query for table {table_name}: {e}")
         return
     try:
         while True:
@@ -521,12 +520,12 @@ def fetch_and_upsert_data(
             page += 1
     except Exception as e:
         # Query execution failed, likely due to missing column
-        log.severe(f"Failed to execute query for table {table_name}. {e}")
+        log.error(f"Failed to execute query for table {table_name}. {e}")
         state[f"{table_name}_last_error"] = str(e)
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
         return
 
@@ -562,7 +561,7 @@ def create_tidb_connection(configuration: Dict[str, Any]) -> TiDBClient:
         connection = TiDBClient.connect(tidb_database_url)
         return connection
     except Exception as e:
-        log.severe(f"Failed to create TiDB connection: {e}")
+        log.error(f"Failed to create TiDB connection: {e}")
         raise
 
 
@@ -580,7 +579,7 @@ def get_tables_to_sync(configuration: Dict[str, Any]) -> List[str]:
         tables_config = json.loads(configuration.get("TABLES_PRIMARY_KEY_COLUMNS", "{}"))
         return list(tables_config.keys())
     except Exception:
-        log.severe("Failed to parse TABLES_PRIMARY_KEY_COLUMNS; nothing to do.")
+        log.error("Failed to parse TABLES_PRIMARY_KEY_COLUMNS; nothing to do.")
         return []
 
 
@@ -624,16 +623,16 @@ def sync_regular_tables(
             )
         except Exception as t_err:
             # Log table-level errors but continue with other tables
-            log.severe(f"Unhandled error processing table: {table_name}. {t_err}")
+            log.error(f"Unhandled error processing table: {table_name}. {t_err}")
             state[f"{table_name}_last_error"] = str(t_err)
             try:
                 # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
                 # from the correct position in case of next sync or interruptions.
                 # Learn more about how and where to checkpoint by reading our best practices documentation
-                # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+                # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
                 op.checkpoint(state)
             except Exception:
-                log.severe(f"Failed to checkpoint state after table-level error for {table_name}")
+                log.error(f"Failed to checkpoint state after table-level error for {table_name}")
 
 
 def sync_vector_tables(
@@ -662,16 +661,16 @@ def sync_vector_tables(
             )
         except Exception as t_err:
             # Log vector table errors but continue with other tables
-            log.severe(f"Unhandled error processing vector table {table_name}: {t_err}")
+            log.error(f"Unhandled error processing vector table {table_name}: {t_err}")
             state[f"{table_name}_last_error"] = str(t_err)
             try:
                 # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
                 # from the correct position in case of next sync or interruptions.
                 # Learn more about how and where to checkpoint by reading our best practices documentation
-                # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+                # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
                 op.checkpoint(state)
             except Exception:
-                log.severe(f"Failed to checkpoint state after vector-table error for {table_name}")
+                log.error(f"Failed to checkpoint state after vector-table error for {table_name}")
 
 
 def close_connection(connection: TiDBClient):
@@ -685,14 +684,14 @@ def close_connection(connection: TiDBClient):
         if hasattr(connection, "close"):
             connection.close()
     except Exception:
-        log.fine("Error while closing TiDB connection (non-fatal).")
+        log.debug("Error while closing TiDB connection (non-fatal).")
 
 
 def update(configuration: Dict[str, Any], state: Dict[str, Any]):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -706,16 +705,16 @@ def update(configuration: Dict[str, Any], state: Dict[str, Any]):
     try:
         connection = create_tidb_connection(configuration=configuration)
     except Exception as conn_err:
-        log.severe(f"Could not connect to TiDB: {conn_err}")
+        log.error(f"Could not connect to TiDB: {conn_err}")
         state["last_connection_error"] = str(conn_err)
         try:
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
         except Exception:
-            log.severe("Failed to checkpoint state after connection error.")
+            log.error("Failed to checkpoint state after connection error.")
         raise
 
     # Get tables to sync

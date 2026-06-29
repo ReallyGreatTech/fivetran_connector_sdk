@@ -2,8 +2,8 @@
 This connector demonstrates how to sync data from ArangoDB multi-model database.
 It syncs document collections (airports, points-of-interest) and edge collections (flights)
 showcasing ArangoDB's native support for documents and graphs.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -33,7 +33,7 @@ def schema(configuration: dict) -> list[dict[str, Any]]:
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     Returns:
@@ -61,7 +61,7 @@ def connect_to_arangodb(configuration: dict) -> Any:
 
     if missing_fields:
         error_msg = f"Missing required configuration fields: {', '.join(missing_fields)}"
-        log.severe(error_msg)
+        log.error(error_msg)
         raise RuntimeError(error_msg)
 
     try:
@@ -76,13 +76,13 @@ def connect_to_arangodb(configuration: dict) -> Any:
         log.info(f"Successfully connected to ArangoDB database '{database_name}'")
         return database
     except ServerConnectionError as e:
-        log.severe("Failed to connect to ArangoDB server", e)
+        log.error("Failed to connect to ArangoDB server", e)
         raise RuntimeError(f"Failed to connect to ArangoDB server: {str(e)}")
     except ArangoServerError as e:
-        log.severe("ArangoDB server error during connection", e)
+        log.error("ArangoDB server error during connection", e)
         raise RuntimeError(f"ArangoDB server error during connection: {str(e)}")
     except Exception as e:
-        log.severe("Unexpected error connecting to ArangoDB", e)
+        log.error("Unexpected error connecting to ArangoDB", e)
         raise RuntimeError(f"Unexpected error connecting to ArangoDB: {str(e)}")
 
 
@@ -122,7 +122,7 @@ def checkpoint_progress(
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
     log.info(
         f"Synced batch {batch_count} for '{collection_name}': {batch_size} documents (total: {total_synced})"
@@ -202,12 +202,12 @@ def sync_collection(database: Any, collection_name: str, table_name: str, state:
         )
         return state[f"{collection_name}_offset"]
     except ArangoServerError as e:
-        log.severe(f"ArangoDB server error while syncing collection '{collection_name}'", e)
+        log.error(f"ArangoDB server error while syncing collection '{collection_name}'", e)
         raise RuntimeError(
             f"ArangoDB server error while syncing collection '{collection_name}': {str(e)}"
         )
     except Exception as e:
-        log.severe(f"Unexpected error syncing collection '{collection_name}'", e)
+        log.error(f"Unexpected error syncing collection '{collection_name}'", e)
         raise RuntimeError(f"Unexpected error syncing collection '{collection_name}': {str(e)}")
 
 
@@ -215,7 +215,7 @@ def update(configuration: dict, state: dict) -> None:
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.

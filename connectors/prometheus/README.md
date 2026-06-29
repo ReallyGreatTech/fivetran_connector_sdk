@@ -6,7 +6,7 @@ This connector syncs metrics metadata and time series data from Prometheus, an o
 
 ## Requirements
 
-- [Supported Python versions](https://github.com/fivetran/fivetran_connector_sdk/blob/main/README.md#requirements)
+- [Supported Python versions](https://github.com/fivetran/connector_sdk/blob/main/README.md#requirements)
 - Operating system:
   - Windows: 10 or later (64-bit only)
   - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
@@ -14,7 +14,18 @@ This connector syncs metrics metadata and time series data from Prometheus, an o
 
 ## Getting started
 
-Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connectors/connector-sdk/setup-guide) to get started.
+Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) to get started.
+
+To initialize a new Connector SDK project using this connector as a starting point, run:
+
+```bash
+fivetran init <project-path> --template connectors/prometheus
+```
+`fivetran init` initializes a new Connector SDK project by setting up the project structure, configuration files, and a connector you can run immediately with `fivetran debug`.
+If you do not specify a project path, Fivetran creates the project in your current directory.
+For more information on `fivetran init`, refer to the [Connector SDK `init` documentation](https://fivetran.com/docs/connector-sdk/setup-guide#createyourcustomconnector).
+
+> Note: Ensure you have updated the `configuration.json` file with the necessary parameters before running `fivetran debug`. See the [Configuration file](#configuration-file) section for details on the required configuration parameters.
 
 ## Features
 
@@ -112,7 +123,7 @@ Refer to the `sync_time_series_for_metrics()` function in `connector.py` for imp
 The connector implements comprehensive error handling:
 
 - API request retry logic: All HTTP requests to Prometheus include automatic retry logic with exponential backoff. The connector retries up to 3 times for transient errors (timeouts and HTTP status codes 429, 500, 502, 503, 504). The retry delay doubles with each attempt, starting from 1 second. Non-retryable errors like authentication failures result in immediate failure. This is implemented in the `make_api_request()` function in `connector.py`.
-- Specific exception handling: The connector catches specific exception types including `requests.Timeout` and `requests.RequestException` rather than generic exceptions. All errors are logged at the severe level with detailed error messages before raising RuntimeError to fail the sync.
+- Specific exception handling: The connector catches specific exception types including `requests.Timeout` and `requests.RequestException` rather than generic exceptions. All errors are logged at the error level with detailed error messages before raising RuntimeError to fail the sync.
 - Response validation: All API responses are validated to ensure the status field is success before processing data. Invalid responses trigger errors with detailed information about what went wrong.
 
 ## Tables created

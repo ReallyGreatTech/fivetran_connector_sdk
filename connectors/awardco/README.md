@@ -1,4 +1,5 @@
 # Awardco Users Connector Example
+
 Awardco is an employee recognition platform. The Awardco API typically exposes RESTful JSON endpoints to manage resources such as users and recognition-related entities. 
 
 Authentication is performed via an API key supplied in request headers. Common behaviors include paginated responses, timestamp fields for change tracking, and conventional HTTP status codes. 
@@ -9,14 +10,25 @@ Refer to [Awardco documentation](https://www.awardco.com/) for additional detail
 This example connector uses the Fivetran Connector SDK to sync Awardco user data into your destination. It performs incremental syncs based on a timestamp cursor, upserts user rows into a single `USER` table, and emits checkpoints for reliable resumption. It also supports paginated requests and can pass a timestamp filter to the Awardco API so only changed records are returned (avoiding full table scans). There is a local mock mode for offline development and testing.
 
 ## Requirements
-- [Supported Python versions](https://github.com/fivetran/fivetran_connector_sdk/blob/main/README.md#requirements)
+- [Supported Python versions](https://github.com/fivetran/connector_sdk/blob/main/README.md#requirements)
 - Operating system:
   - Windows: 10 or later (64-bit only)
   - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
   - Linux: Ubuntu 20.04+ / Debian 10+ / Amazon Linux 2+ (arm64 or x86_64)
 
 ## Getting started
-Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connectors/connector-sdk/setup-guide) to get started.
+Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) to get started.
+
+To initialize a new Connector SDK project using this connector as a starting point, run:
+
+```bash
+fivetran init <project-path> --template connectors/awardco
+```
+`fivetran init` initializes a new Connector SDK project by setting up the project structure, configuration files, and a connector you can run immediately with `fivetran debug`.
+If you do not specify a project path, Fivetran creates the project in your current directory.
+For more information on `fivetran init`, refer to the [Connector SDK `init` documentation](https://fivetran.com/docs/connector-sdk/setup-guide#createyourcustomconnector).
+
+> Note: Ensure you have updated the `configuration.json` file with the necessary parameters before running `fivetran debug`. See the [Configuration file](#configuration-file) section for details on the required configuration parameters.
 
 ## Features
 - Incremental sync based on `updated_at` timestamp
@@ -77,7 +89,7 @@ This connector implements simple page-based pagination. The `update` loop reques
 The connector validates the configuration and wraps network and processing steps in a try/except, surfacing failures with a clear error message. Logging uses the [Connector SDK logger](https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-logs) for observability.
 
 Recommendations:
-- Add `log.severe(...)` on critical failures where appropriate.
+- Add `log.error(...)` on critical failures where appropriate.
 - Consider retries and rate-limit handling if the Awardco API enforces limits.
 
 ## Tables created

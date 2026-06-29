@@ -12,14 +12,23 @@ Ashish is a seasoned API Security and DevSecOps specialist with over a decade of
 The OWASP API Vulnerabilities connector was developed as part of Ashish’s submission to the AI Accelerate Hackathon 2025 – Fivetran Challenge - https://devpost.com/software/owasp-api-vulnerability-adviso.
 
 ## Requirements
-- [Supported Python versions](https://github.com/fivetran/fivetran_connector_sdk/blob/main/README.md#requirements)   
+- [Supported Python versions](https://github.com/fivetran/connector_sdk/blob/main/README.md#requirements)   
 - Operating system:
   - Windows: 10 or later (64-bit only)
   - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
   - Linux: Distributions such as Ubuntu 20.04 or later, Debian 10 or later, or Amazon Linux 2 or later (arm64 or x86_64)
 
 ## Getting started
-Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connectors/connector-sdk/setup-guide) to get started.
+Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) to get started.
+
+To initialize a new Connector SDK project using this connector as a starting point, run:
+
+```bash
+fivetran init <project-path> --template connectors/owasp_api_vulns
+```
+`fivetran init` initializes a new Connector SDK project by setting up the project structure, configuration files, and a connector you can run immediately with `fivetran debug`.
+If you do not specify a project path, Fivetran creates the project in your current directory.
+For more information on `fivetran init`, refer to the [Connector SDK `init` documentation](https://fivetran.com/docs/connector-sdk/setup-guide#createyourcustomconnector).
 
 ## Features
 - Fetches vulnerability data from the NVD 2.0 API.
@@ -82,11 +91,11 @@ The connector fetches, processes, and delivers data to Fivetran as outlined in t
 
 ## Error handling
 The connector implements several error-handling strategies within the `update` function.
-- It checks the HTTP status code of each API response. If the status is not 200, it logs a `severe` error with details from the response and stops processing for that CWE.
+- It checks the HTTP status code of each API response. If the status is not 200, it logs an `error` with details from the response and stops processing for that CWE.
 - It implements an exponential backoff retry strategy for transient network errors, 5xx server errors, and rate limit errors (HTTP 403 and 429).
 - To proactively manage rate limits, the connector applies a fixed delay of 0.6 seconds (`__API_RATE_LIMIT_DELAY`) between paginated requests.
-- It wraps the JSON decoding process in a `try...except` block to catch `json.JSONDecodeError` and logs a `severe` error if the response is not valid JSON.
-- A general `try...except` block is used to catch any other exceptions during the API request and processing loop, logging a `severe` error to prevent the entire sync from failing.
+- It wraps the JSON decoding process in a `try...except` block to catch `json.JSONDecodeError` and logs an `error` if the response is not valid JSON.
+- A general `try...except` block is used to catch any other exceptions during the API request and processing loop, logging an `error` to prevent the entire sync from failing.
 
 ## Tables created
 The connector creates two tables in the destination, as defined in the `schema` function.

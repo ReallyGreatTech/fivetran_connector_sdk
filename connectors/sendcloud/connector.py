@@ -1,6 +1,6 @@
 """This connector demonstrates how to fetch shipment data from Sendcloud API and upsert it into destination using requests library.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -160,17 +160,17 @@ def handle_http_error(error: requests.exceptions.HTTPError, attempt: int):
 
     # Fail fast for permanent errors
     if status_code in [400, 401, 403, 404]:
-        log.severe(f"API request failed with status {status_code}: {str(error)}")
+        log.error(f"API request failed with status {status_code}: {str(error)}")
         raise RuntimeError(f"Failed to fetch shipments: {str(error)}")
 
     # Handle retryable errors
     is_last_attempt = attempt >= __MAX_RETRIES - 1
     if is_last_attempt:
-        log.severe(
+        log.error(
             f"Failed to fetch shipments after {__MAX_RETRIES} attempts. Status: {status_code}"
         )
         if error.response is not None:
-            log.severe(f"Response content: {error.response.text[:__ERROR_LOG_MAX_LENGTH]}")
+            log.error(f"Response content: {error.response.text[:__ERROR_LOG_MAX_LENGTH]}")
         raise RuntimeError(
             f"API returned {status_code} after {__MAX_RETRIES} attempts: {str(error)}"
         )
@@ -194,7 +194,7 @@ def handle_network_error(error: Exception, attempt: int):
     """
     is_last_attempt = attempt >= __MAX_RETRIES - 1
     if is_last_attempt:
-        log.severe(f"Failed to fetch shipments after {__MAX_RETRIES} attempts: {str(error)}")
+        log.error(f"Failed to fetch shipments after {__MAX_RETRIES} attempts: {str(error)}")
         raise RuntimeError(f"Failed to fetch shipments: {str(error)}")
 
     # Retry with exponential backoff
@@ -698,7 +698,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -832,7 +832,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -898,7 +898,7 @@ def update(configuration: dict, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         if has_more_pages:
             intermediate_state = {"cursor": current_time}
             op.checkpoint(intermediate_state)
@@ -913,7 +913,7 @@ def update(configuration: dict, state: dict):
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(new_state)
 
     log.info(f"Sync completed successfully. Next sync will start from: {current_time}")

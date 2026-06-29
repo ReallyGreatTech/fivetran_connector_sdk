@@ -1,7 +1,7 @@
 """Netlify API Connector for Fivetran Connector SDK.
 This connector demonstrates how to fetch data from Netlify API including sites, deploys, forms, and form submissions.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -52,7 +52,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -108,7 +108,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -126,7 +126,7 @@ def update(configuration: dict, state: dict):
         sync_submissions(api_token, state)
 
     except (requests.exceptions.RequestException, RuntimeError) as e:
-        log.severe(f"Failed to sync data: {str(e)}")
+        log.error(f"Failed to sync data: {str(e)}")
         raise
 
 
@@ -190,7 +190,7 @@ def process_records_with_pagination(
                 # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
                 # from the correct position in case of next sync or interruptions.
                 # Learn more about how and where to checkpoint by reading our best practices documentation
-                # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+                # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
                 op.checkpoint(state)
         page += 1
 
@@ -200,7 +200,7 @@ def process_records_with_pagination(
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
 
     return record_count
@@ -297,7 +297,7 @@ def process_site_child_records(
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
 
     return record_count
@@ -428,7 +428,7 @@ def process_child_records_batch(
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
 
     return record_count, last_timestamp
@@ -528,7 +528,7 @@ def make_api_request_with_retry(url: str, api_token: str):
             handle_request_exception(e, attempt)
 
     # If we've exhausted all retries without returning, raise an error
-    log.severe(f"Failed to fetch data from {url} after {__MAX_RETRIES} attempts")
+    log.error(f"Failed to fetch data from {url} after {__MAX_RETRIES} attempts")
     raise RuntimeError(f"Failed to fetch data after {__MAX_RETRIES} attempts")
 
 
@@ -554,7 +554,7 @@ def handle_api_response(response, attempt: int):
         handle_retryable_error(response.status_code, response.text, attempt)
         return None  # Continue to next retry attempt
 
-    log.severe(f"API request failed with status {response.status_code}: {response.text}")
+    log.error(f"API request failed with status {response.status_code}: {response.text}")
     raise RuntimeError(f"API request failed with status {response.status_code}: {response.text}")
 
 
@@ -569,7 +569,7 @@ def handle_retryable_error(status_code: int, response_text: str, attempt: int):
         RuntimeError: If this was the last retry attempt.
     """
     if attempt >= __MAX_RETRIES - 1:
-        log.severe(
+        log.error(
             f"Failed to fetch data after {__MAX_RETRIES} attempts. Last status: {status_code} - {response_text}"
         )
         raise RuntimeError(
@@ -593,7 +593,7 @@ def handle_request_exception(exception: requests.exceptions.RequestException, at
         RuntimeError: If this was the last retry attempt.
     """
     if attempt >= __MAX_RETRIES - 1:
-        log.severe(f"Failed to fetch data after {__MAX_RETRIES} attempts: {str(exception)}")
+        log.error(f"Failed to fetch data after {__MAX_RETRIES} attempts: {str(exception)}")
         raise RuntimeError(
             f"Failed to fetch data after {__MAX_RETRIES} attempts: {str(exception)}"
         )

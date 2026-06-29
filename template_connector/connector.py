@@ -1,7 +1,7 @@
 """ADD ONE LINE DESCRIPTION OF YOUR CONNECTOR HERE.
 For example: This connector demonstrates a working starter template that syncs simple user data.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -41,7 +41,7 @@ GUIDELINES TO FOLLOW WHILE WRITING A CONNECTOR:
 - Add comments for upsert, update and delete to explain the purpose of upsert, update and delete. This will help users understand the upsert, update and delete processes.
 - Checkpoint your state at regular intervals to ensure that the connector can resume from the last successful sync in case of interruptions.
 - Add comments for checkpointing to explain the purpose of checkpoint. This will help users understand the checkpointing process.
-- Refer to the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices)
+- Refer to the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices)
 """
 
 
@@ -91,9 +91,9 @@ def schema(configuration: dict):
 
 def update(configuration: dict, state: dict):
     """
-     Define the update function, which is a required function, and is called by Fivetran during each sync.
+    Define the update function, which is a required function, and is called by Fivetran during each sync.
     See the technical reference documentation for more details on the update function
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: A dictionary containing connection details
         state: A dictionary containing state information from previous runs

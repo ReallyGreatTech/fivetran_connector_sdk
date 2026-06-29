@@ -10,7 +10,7 @@ The connector retrieves data from four primary endpoints: health checks (monitor
 
 ## Requirements
 
-- [Supported Python versions](https://github.com/fivetran/fivetran_connector_sdk/blob/main/README.md#requirements)
+- [Supported Python versions](https://github.com/fivetran/connector_sdk/blob/main/README.md#requirements)
 - Operating system:
   - Windows: 10 or later (64-bit only)
   - macOS: 13 (Ventura) or later (Apple Silicon [arm64] or Intel [x86_64])
@@ -18,7 +18,18 @@ The connector retrieves data from four primary endpoints: health checks (monitor
 
 ## Getting started
 
-Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connectors/connector-sdk/setup-guide) to get started.
+Refer to the [Connector SDK Setup Guide](https://fivetran.com/docs/connector-sdk/setup-guide) to get started.
+
+To initialize a new Connector SDK project using this connector as a starting point, run:
+
+```bash
+fivetran init <project-path> --template connectors/healthchecks
+```
+`fivetran init` initializes a new Connector SDK project by setting up the project structure, configuration files, and a connector you can run immediately with `fivetran debug`.
+If you do not specify a project path, Fivetran creates the project in your current directory.
+For more information on `fivetran init`, refer to the [Connector SDK `init` documentation](https://fivetran.com/docs/connector-sdk/setup-guide#createyourcustomconnector).
+
+> Note: Ensure you have updated the `configuration.json` file with the necessary parameters before running `fivetran debug`. See the [Configuration file](#configuration-file) section for details on the required configuration parameters.
 
 ## Features
 
@@ -93,7 +104,7 @@ The connector implements comprehensive error-handling strategies (refer to the `
 - Maximum of 3 retry attempts with delays of 1s, 2s, and 4s
 - Network timeout protection (30-second timeout for all requests)
 - Graceful degradation for non-critical endpoints (pings, flips, and integration failures are logged but don't halt the sync)
-- Detailed error logging using Fivetran SDK logging levels (info, warning, severe)
+- Detailed error logging using Fivetran SDK logging levels (info, warning, error)
 - Fail-fast behavior for authentication errors and permanent failures (4xx errors)
 
 ## Tables created

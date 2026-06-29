@@ -2,8 +2,8 @@
 This connector example demonstrates common patterns for handling high-volume CSV data ingestion.
 It includes techniques for efficient reading and processing of large CSV files using libraries like Dask, Polars, and Pandas with PyArrow.
 We recommend to use Polars for high-volume CSV processing due to its performance and low memory usage.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -37,7 +37,6 @@ from typing import Optional, Dict
 import dask.dataframe as dd
 import polars as pl
 import pandas as pd
-
 
 __MAX_RETRIES = 3  # Maximum number of retry attempts for API requests
 __INITIAL_RETRY_DELAY = 1  # Initial delay in seconds for retries
@@ -151,7 +150,7 @@ def make_api_request_with_retry(url: str, headers: Optional[Dict[str, str]] = No
                 )
                 time.sleep(delay)
             else:
-                log.severe(f"Request failed after {__MAX_RETRIES} attempts")
+                log.error(f"Request failed after {__MAX_RETRIES} attempts")
 
     raise last_exception
 
@@ -351,7 +350,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function, which is a required function, and is called by Fivetran during each sync.
     See the technical reference documentation for more details on the update function
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: A dictionary containing connection details
         state: A dictionary containing state information from previous runs

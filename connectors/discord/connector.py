@@ -4,10 +4,10 @@ This connector demonstrates how to fetch Discord server data including guilds,
 channels, messages, and users using the Discord API.
 
 See the Technical Reference documentation:
-https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
 
 And the Best Practices documentation:
-https://fivetran.com/docs/connectors/connector-sdk/best-practices
+https://fivetran.com/docs/connector-sdk/best-practices
 """
 
 # For reading configuration from a JSON file
@@ -32,7 +32,6 @@ from fivetran_connector_sdk import Logging as log
 # For supporting Data operations like Upsert(), Update(), Delete() and
 # checkpoint()
 from fivetran_connector_sdk import Operations as op
-
 
 # Constants for API configuration and rate limiting
 __MAX_RETRIES = 3  # Maximum number of retry attempts for API requests
@@ -143,7 +142,7 @@ def _handle_retry_with_backoff(
         error_log = error_message
         if error_detail:
             error_log = f"{error_message}: {error_detail}"
-        log.severe(f"{error_log} after {__MAX_RETRIES} attempts")
+        log.error(f"{error_log} after {__MAX_RETRIES} attempts")
         raise RuntimeError(f"{error_message} after {__MAX_RETRIES} attempts")
 
 
@@ -174,7 +173,7 @@ def make_discord_request(url: str, headers: dict, params: Optional[dict] = None)
                 )
                 continue
             else:
-                log.severe(f"Discord API error {response.status_code}: {response.text}")
+                log.error(f"Discord API error {response.status_code}: {response.text}")
                 raise RuntimeError(f"Discord API returned {response.status_code}: {response.text}")
 
         except requests.exceptions.RequestException as e:
@@ -468,7 +467,7 @@ def schema(configuration: dict):
     delivers.
 
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
 
     Args:
         configuration: a dictionary that holds the configuration settings for the
@@ -739,7 +738,7 @@ def process_single_guild(
         }
 
     except Exception as e:
-        log.severe(f"Error processing guild {guild_name} (ID: {guild_id}): {str(e)}")
+        log.error(f"Error processing guild {guild_name} (ID: {guild_id}): {str(e)}")
         raise
 
 
@@ -803,7 +802,7 @@ def _process_single_guild_with_error_handling(
         return records_processed
 
     except Exception as e:
-        log.severe(f"Failed to process guild {guild_name} (ID: {guild_id}): {str(e)}")
+        log.error(f"Failed to process guild {guild_name} (ID: {guild_id}): {str(e)}")
         # Continue with other guilds even if one fails
         return 0
 
@@ -869,7 +868,7 @@ def update(configuration: dict, state: dict):
     Fivetran during each sync.
 
     See the technical reference documentation for more details on the update function
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: A dictionary containing connection details
         state: A dictionary containing state information from previous runs
@@ -907,7 +906,7 @@ def update(configuration: dict, state: dict):
         _finalize_sync(guilds_state, total_processed_count, len(guilds_to_process), state)
 
     except Exception as e:
-        log.severe(f"Discord Connector: Multi-guild sync failed with error: {str(e)}")
+        log.error(f"Discord Connector: Multi-guild sync failed with error: {str(e)}")
         raise RuntimeError(f"Failed to sync Discord data: {str(e)}")
 
 

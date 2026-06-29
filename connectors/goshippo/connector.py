@@ -1,7 +1,7 @@
 """Goshippo Connector for syncing shipment data from the Goshippo API.
 This connector demonstrates how to fetch shipment data from Goshippo and upsert it into destination using the Fivetran Connector SDK.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -37,7 +37,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -68,7 +68,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -92,7 +92,7 @@ def update(configuration: dict, state: dict):
         log.info(f"Sync completed successfully. New sync time: {new_sync_time}")
 
     except (RuntimeError, requests.RequestException, ValueError, KeyError) as e:
-        log.severe(f"Failed to sync data: {str(e)}")
+        log.error(f"Failed to sync data: {str(e)}")
         raise RuntimeError(f"Failed to sync data: {str(e)}")
 
 
@@ -146,7 +146,7 @@ def sync_shipments(api_token, last_sync_time):
                 # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
                 # from the correct position in case of next sync or interruptions.
                 # Learn more about how and where to checkpoint by reading our best practices documentation
-                # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+                # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
                 op.checkpoint(checkpoint_state)
                 log.info(f"Checkpointed after processing {records_processed} records")
 
@@ -223,11 +223,11 @@ def handle_response_status(response, attempt):
             error_message = (
                 f"Failed after {__MAX_RETRIES} attempts. Status: {response.status_code}"
             )
-            log.severe(error_message)
+            log.error(error_message)
             raise RuntimeError(error_message)
     else:
         error_message = f"API returned status {response.status_code}: {response.text}"
-        log.severe(error_message)
+        log.error(error_message)
         raise RuntimeError(error_message)
 
 
@@ -246,7 +246,7 @@ def handle_request_exception(exception, attempt):
         )
         time.sleep(delay)
     else:
-        log.severe(f"{exception_name} after {__MAX_RETRIES} attempts")
+        log.error(f"{exception_name} after {__MAX_RETRIES} attempts")
         raise
 
 

@@ -1,7 +1,7 @@
 """Resend Emails Connector for Fivetran - fetches email data from Resend API.
 This connector demonstrates how to fetch email data from Resend REST API and upsert it into destination using the Fivetran Connector SDK.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -119,17 +119,17 @@ def fetch_emails_from_api(url: str, headers: dict, params: Optional[dict] = None
                 log.warning("Request timeout.")
                 retry_with_backoff(attempt)
                 continue
-            log.severe(f"Request timeout after {__MAX_RETRIES} attempts")
+            log.error(f"Request timeout after {__MAX_RETRIES} attempts")
             raise
         except requests.exceptions.HTTPError as e:
             if is_retryable_http_error(response) and attempt < __MAX_RETRIES - 1:
                 log.warning(f"HTTP {response.status_code} error.")
                 retry_with_backoff(attempt)
                 continue
-            log.severe(f"HTTP error {response.status_code}: {e}")
+            log.error(f"HTTP error {response.status_code}: {e}")
             raise
         except (requests.exceptions.RequestException, ValueError) as e:
-            log.severe(f"Request failed: {e}")
+            log.error(f"Request failed: {e}")
             raise
 
     raise requests.exceptions.RequestException(f"Request failed after {__MAX_RETRIES} attempts")
@@ -157,7 +157,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -174,7 +174,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -204,11 +204,11 @@ def update(configuration: dict, state: dict):
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(new_state)
 
     except (requests.exceptions.RequestException, ValueError) as e:
-        log.severe(f"Failed to sync data: {str(e)}")
+        log.error(f"Failed to sync data: {str(e)}")
         raise
 
 
@@ -258,7 +258,7 @@ def checkpoint_if_needed(emails_synced_count: int, newest_email_id: str) -> None
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(checkpoint_state)
         log.info(f"Checkpointed at {emails_synced_count} emails with newest ID: {newest_email_id}")
 
@@ -385,7 +385,7 @@ def sync_emails(headers: dict, last_synced_email_id: Optional[str] = None) -> Op
             time.sleep(__RATE_LIMIT_DELAY_SECONDS)
 
         except (requests.exceptions.RequestException, ValueError) as e:
-            log.severe(f"Error syncing emails: {e}")
+            log.error(f"Error syncing emails: {e}")
             raise
 
     log.info(f"Email sync completed. Total new emails synced: {total_new_emails_count}")

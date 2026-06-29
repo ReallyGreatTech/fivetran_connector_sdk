@@ -1,8 +1,8 @@
 """Healthchecks.io Connector for Fivetran Connector SDK.
 This connector syncs health check monitoring data from Healthchecks.io API to your destination.
 It supports incremental syncing of checks, pings, and integrations data.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -77,7 +77,7 @@ def handle_retryable_error(attempt: int, error_message: str, error_context: str)
     is_last_attempt = attempt >= __MAX_RETRIES - 1
 
     if is_last_attempt:
-        log.severe(f"{error_context} after {__MAX_RETRIES} attempts: {error_message}")
+        log.error(f"{error_context} after {__MAX_RETRIES} attempts: {error_message}")
         raise RuntimeError(f"{error_context} after {__MAX_RETRIES} attempts: {error_message}")
 
     # Calculate exponential backoff delay and retry
@@ -112,7 +112,7 @@ def make_api_request(url: str, api_key: str):
 
             # Non-retryable error - fail fast
             if response.status_code not in __RETRYABLE_STATUS_CODES:
-                log.severe(
+                log.error(
                     f"API request failed with status {response.status_code}: {response.text}"
                 )
                 raise RuntimeError(f"API returned {response.status_code}: {response.text}")
@@ -164,12 +164,12 @@ def fetch_check_pings(check_uuid: str, api_key: str):
         List of ping dictionaries containing ping event data.
     """
     url = f"{__BASE_API_URL}/checks/{check_uuid}/pings/"
-    log.fine(f"Fetching pings for check {check_uuid}")
+    log.debug(f"Fetching pings for check {check_uuid}")
 
     try:
         response_data = make_api_request(url, api_key)
         pings = response_data.get("pings", [])
-        log.fine(f"Retrieved {len(pings)} pings for check {check_uuid}")
+        log.debug(f"Retrieved {len(pings)} pings for check {check_uuid}")
         return pings
     except RuntimeError as e:
         log.warning(f"Failed to fetch pings for check {check_uuid}: {str(e)}")
@@ -187,12 +187,12 @@ def fetch_check_flips(check_uuid: str, api_key: str):
         List of flip dictionaries containing status change event data.
     """
     url = f"{__BASE_API_URL}/checks/{check_uuid}/flips/"
-    log.fine(f"Fetching flips for check {check_uuid}")
+    log.debug(f"Fetching flips for check {check_uuid}")
 
     try:
         response_data = make_api_request(url, api_key)
         flips = response_data.get("flips", [])
-        log.fine(f"Retrieved {len(flips)} flips for check {check_uuid}")
+        log.debug(f"Retrieved {len(flips)} flips for check {check_uuid}")
         return flips
     except RuntimeError as e:
         log.warning(f"Failed to fetch flips for check {check_uuid}: {str(e)}")
@@ -319,7 +319,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -335,7 +335,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
 
     Note: This connector performs a full refresh on each sync because the Healthchecks.io API
     does not support timestamp-based filtering or pagination. The state is maintained for

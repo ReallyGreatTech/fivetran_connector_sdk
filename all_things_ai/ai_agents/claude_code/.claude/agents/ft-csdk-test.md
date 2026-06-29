@@ -50,6 +50,7 @@ This agent specializes in:
 - **Memory:** 1 GB RAM
 - **CPU:** 0.5 vCPUs
 - **Python Versions:** 3.10.18, 3.11.13, 3.12.11, 3.13.7, 3.14.0
+  - check https://fivetran.com/docs/connector-sdk/technical-reference#sdkruntimeenvironment for latest
 - **Pre-installed Packages:** `requests`, `fivetran_connector_sdk`
 - **Output:** DuckDB `warehouse.db` file for validation
 
@@ -64,7 +65,7 @@ fivetran debug --configuration configuration.json
 # Reset local state for fresh debug run
 fivetran reset
 
-# Check SDK version
+# Check Connector SDK version
 fivetran version
 ```
 
@@ -103,13 +104,13 @@ Checkpoints   | 1
 - **File Structure**: All required files exist with valid syntax
 - **Configuration**: String values only, proper authentication fields
 - **Code Quality**: Python syntax, proper imports, required methods
-- **Execution**: Connector runs without severe errors or crashes
+- **Execution**: Connector runs without errors or crashes
 - **Data Quality**: Schema matches, data successfully synced
 - **Primary Keys**: No violations, proper deduplication
 
 # Success Criteria
 - All required files exist with valid syntax and format
-- Connector executes without severe errors or crashes
+- Connector executes without errors or crashes
 - Database schema matches declared schema definition
 - Data is successfully synced with reasonable quality metrics
 - No critical authentication, connection, or primary key violations
@@ -124,7 +125,7 @@ Checkpoints   | 1
 
 2. **Configuration Validation**:
    - Parse configuration.json for syntax errors
-   - Verify all values are strings as required by SDK
+   - Verify all values are strings as required by the Fivetran Connector SDK
    - Check for required authentication fields
    - Validate configuration structure
 
@@ -147,7 +148,7 @@ Checkpoints   | 1
    - **CRITICAL FAILURE DETECTION**: Use your AI judgment to identify ANY signs of failure in the output
      - Examples of failure indicators (but NOT limited to):
        - "SYNC FAILED" anywhere in output
-       - "SEVERE" log messages (e.g., "SEVERE Fivetran-Tester-Process")  
+       - "ERROR" log messages (e.g., "ERROR Fivetran-Tester-Process")  
        - "Error:" messages with stack traces
        - "ValueError", "Exception", "ConnectionError" in logs
        - Zero operations with no data synced (all counts = 0)
@@ -155,7 +156,7 @@ Checkpoints   | 1
    - Analyze operation counts in summary:
      - Upserts, Updates, Deletes, Truncates
      - SchemaChanges, Checkpoints
-   - Verify no severe errors or warnings in logs
+   - Verify no error or warnings in logs
    - Check for proper authentication success
 
 ## PHASE 3: Data Validation
@@ -198,7 +199,7 @@ Checkpoints   | 1
 A connector passes testing if:
 - All files exist and have valid syntax
 - Configuration is properly formatted
-- Connector executes without severe errors
+- Connector executes without errors
 - Warehouse.db is created with expected schema
 - Data is successfully synced with reasonable quality
 - No primary key violations or critical data issues
@@ -210,11 +211,11 @@ A connector **MUST FAIL** testing if ANY of these occur:
 - Configuration format errors
 - Connector crashes or fails to execute
 - No data synced or warehouse.db not created
-- Severe authentication or connection errors
+- Authentication or connection errors
 - Critical data quality issues or schema mismatches
 
 **USE AI JUDGMENT**: Apply intelligent analysis to detect ANY failure indicators in the output including (but not limited to):
-- "SYNC FAILED", "SEVERE" error messages, stack traces, exceptions, crashes, timeouts, authentication failures, connection errors, or any other signs that the connector is not working properly
+- "SYNC FAILED", "ERROR" messages, stack traces, exceptions, crashes, timeouts, authentication failures, connection errors, or any other signs that the connector is not working properly
 
 **CRITICAL**: Trust your AI analysis - if the output shows ANY indication of failure, errors, or problems, report TEST STATUS: FAIL
 

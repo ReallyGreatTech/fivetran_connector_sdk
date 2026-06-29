@@ -6,8 +6,8 @@ The sync is performed via full table replication using offset-based pagination.
 Note: Incremental filtering is not supported by the current sandbox environment.
 
 See the Fivetran Connector SDK documentation:
-- Technical Reference: https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
-- Best Practices: https://fivetran.com/docs/connectors/connector-sdk/best-practices
+- Technical Reference: https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
+- Best Practices: https://fivetran.com/docs/connector-sdk/best-practices
 """
 
 # For reading configuration from a JSON file
@@ -96,7 +96,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -118,7 +118,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -141,14 +141,14 @@ def update(configuration: dict, state: dict):
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
 
     sync_table(params.copy(), "item", headers, state, sync_start)
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
 
     log.info("SAP Ariba sync completed successfully.")
@@ -184,7 +184,7 @@ def sync_table(params: dict, table: str, headers: dict, state: dict, sync_start:
     elif table == "item":
         columns = get_item_columns()
     else:
-        log.severe(f"Table {table} is not supported for sync.")
+        log.error(f"Table {table} is not supported for sync.")
         return
 
     # Reset offset to 0 for a full table sync.
@@ -244,7 +244,7 @@ def sync_rows(
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
 
         # Increment the offset parameter for the next page fetch.
@@ -283,7 +283,7 @@ def make_api_request(
                 time.sleep(wait)
             elif 400 <= response.status_code < 500:
                 # Client errors (other than 429) should fail immediately without retry
-                log.severe(f"Client error {response.status_code}: {response.text}")
+                log.error(f"Client error {response.status_code}: {response.text}")
                 response.raise_for_status()
             elif 500 <= response.status_code < 600:
                 log.warning(f"Server error {response.status_code}, retrying...")
@@ -302,7 +302,7 @@ def make_api_request(
             last_exception = e
             if attempt == retries:
                 break
-            log.severe(f"Network error: {e}")
+            log.error(f"Network error: {e}")
             time.sleep(delay * attempt)
 
     # Re-raise the last exception if all retries exhausted

@@ -1,6 +1,6 @@
 """This connector fetches API security vulnerability data from the National Vulnerability Database (NVD) 2.0 API.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # Standard library imports
@@ -97,7 +97,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
 
     Args:
         configuration (dict): A dictionary that holds the configuration settings for the connector.
@@ -284,9 +284,7 @@ def _build_request_params(cwe: str, state: dict, force_full_sync: bool):
                 f"lastModEndDate={params['lastModEndDate']}"
             )
         except ValueError as e:
-            log.severe(
-                f"Critical error: Invalid last_sync_time format in state for CWE {cwe}: {e}"
-            )
+            log.error(f"Critical error: Invalid last_sync_time format in state for CWE {cwe}: {e}")
             raise ValueError(f"Malformed state for {cwe}: last_sync_time is invalid: {e}")
     else:
         params["resultsPerPage"] = __RESULTS_PER_PAGE
@@ -589,7 +587,7 @@ def _fetch_and_process_cwe_data(
                         403,
                         429,
                     ]:
-                        log.severe(f"Client error for {cwe}: {e}")
+                        log.error(f"Client error for {cwe}: {e}")
                         raise  # Re-raise to be caught by the outer handler in update()
 
                 # For 5xx server errors, 429 rate limit, or network errors, retry
@@ -597,7 +595,7 @@ def _fetch_and_process_cwe_data(
                     f"Retriable error for {cwe} (attempt {attempt + 1}/{__MAX_RETRIES}): {e}"
                 )
                 if attempt == __MAX_RETRIES - 1:
-                    log.severe(f"Failed to fetch data for {cwe} after {__MAX_RETRIES} attempts.")
+                    log.error(f"Failed to fetch data for {cwe} after {__MAX_RETRIES} attempts.")
                     raise  # Re-raise the exception after the final attempt
 
             # If we are here, it's a retriable error and not the last attempt.
@@ -610,7 +608,7 @@ def _fetch_and_process_cwe_data(
             # without accumulation, so loading one page's response into memory is acceptable.
             data = response.json()
         except json.JSONDecodeError as e:
-            log.severe(
+            log.error(
                 f"JSON decode error for {cwe} at startIndex {params.get('startIndex', 'N/A')}: {e}"
             )
             # Instead of break, raise an exception to fail processing for this CWE.
@@ -683,7 +681,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
 
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
@@ -714,7 +712,7 @@ def update(configuration: dict, state: dict):
             params = _build_request_params(cwe, state, force_full_sync)
         except ValueError as e:
             # Critical config error; stop processing this CWE
-            log.severe(f"Configuration/State error for {cwe}: {str(e)}")
+            log.error(f"Configuration/State error for {cwe}: {str(e)}")
             break
 
         if is_debug_logging:
@@ -741,18 +739,18 @@ def update(configuration: dict, state: dict):
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
 
         except requests.exceptions.RequestException as e:
-            log.severe(f"Network error fetching for {cwe}: {str(e)}")
+            log.error(f"Network error fetching for {cwe}: {str(e)}")
             # Continue to next CWE
             continue
         except ValueError as e:
-            log.severe(f"Data validation error for {cwe}: {str(e)}")
+            log.error(f"Data validation error for {cwe}: {str(e)}")
             continue
         except Exception as e:
-            log.severe(f"Unexpected error fetching for {cwe}: {str(e)}")
+            log.error(f"Unexpected error fetching for {cwe}: {str(e)}")
             # Re-raise unexpected exceptions to fail the sync if it's critical
             raise
 

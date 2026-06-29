@@ -1,7 +1,7 @@
 """YugabyteDB Connector for Fivetran Connector SDK.
 This connector fetches data from YugabyteDB database and syncs it to Fivetran destinations.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from a JSON file
@@ -86,7 +86,7 @@ def create_connection(configuration: dict):
         log.info("Successfully connected to YugabyteDB")
         return connection
     except psycopg2.Error as e:
-        log.severe("Failed to connect to YugabyteDB", e)
+        log.error("Failed to connect to YugabyteDB", e)
         raise
 
 
@@ -113,7 +113,7 @@ def get_table_list(connection, schema_name: str):
         log.info(f"Found {len(tables)} tables in schema '{schema_name}'")
         return tables
     except psycopg2.Error as e:
-        log.severe(f"Failed to fetch table list from schema '{schema_name}'", e)
+        log.error(f"Failed to fetch table list from schema '{schema_name}'", e)
         raise
     finally:
         cursor.close()
@@ -143,9 +143,7 @@ def get_primary_key_columns(connection, schema_name: str, table_name: str):
         pk_columns = [row[0] for row in cursor.fetchall()]
         return pk_columns
     except psycopg2.Error as e:
-        log.severe(
-            f"Failed to fetch primary key columns for table '{schema_name}.{table_name}'", e
-        )
+        log.error(f"Failed to fetch primary key columns for table '{schema_name}.{table_name}'", e)
         raise
     finally:
         cursor.close()
@@ -171,7 +169,7 @@ def check_incremental_column(connection, schema_name: str, table_name: str):
         cursor.execute(query, (schema_name, table_name))
         return cursor.fetchone() is not None
     except psycopg2.Error as e:
-        log.severe(f"Failed to check incremental column for table '{schema_name}.{table_name}'", e)
+        log.error(f"Failed to check incremental column for table '{schema_name}.{table_name}'", e)
         raise
     finally:
         cursor.close()
@@ -252,7 +250,7 @@ def checkpoint_if_needed(record_count: int, table_name: str, latest_timestamp: s
         # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
         # from the correct position in case of next sync or interruptions.
         # Learn more about how and where to checkpoint by reading our best practices documentation
-        # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+        # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
         op.checkpoint(state)
         log.info(f"Checkpointed at {record_count} records for '{table_name}'")
 
@@ -354,7 +352,7 @@ def schema(configuration: dict):
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -386,7 +384,7 @@ def update(configuration: dict, state: dict):
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
@@ -420,7 +418,7 @@ def update(configuration: dict, state: dict):
             # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
             # from the correct position in case of next sync or interruptions.
             # Learn more about how and where to checkpoint by reading our best practices documentation
-            # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+            # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
             op.checkpoint(state)
             log.info(
                 f"Final checkpoint for table '{table_name}' with timestamp: {latest_timestamp}"
@@ -429,20 +427,20 @@ def update(configuration: dict, state: dict):
         log.info(f"Sync completed. Total records synced: {total_records}")
 
     except psycopg2.OperationalError as e:
-        log.severe("Database connection error", e)
+        log.error("Database connection error", e)
         raise RuntimeError(
             f"Failed to connect to YugabyteDB. Please check host, port, and credentials: {str(e)}"
         )
     except psycopg2.ProgrammingError as e:
-        log.severe("Database query error", e)
+        log.error("Database query error", e)
         raise RuntimeError(
             f"Query execution failed. Check if tables exist and user has permissions: {str(e)}"
         )
     except psycopg2.Error as e:
-        log.severe("Database error occurred", e)
+        log.error("Database error occurred", e)
         raise RuntimeError(f"Database error: {str(e)}")
     except ValueError as e:
-        log.severe("Configuration validation error", e)
+        log.error("Configuration validation error", e)
         raise RuntimeError(f"Invalid configuration: {str(e)}")
     finally:
         if connection:

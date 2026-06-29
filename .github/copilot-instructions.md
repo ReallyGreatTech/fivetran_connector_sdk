@@ -36,7 +36,7 @@ As of SDK v2.0.0 (August 2025), yield is NO LONGER USED:
 - Backward compatible: old v1 connectors still work, but new code must not use `yield`
 
 ### Runtime and tooling
-- Python versions: 3.10-3.12 (3.13 experimental support)
+- Python versions: 3.10-3.14 (3.13 default version)
 - Pre-installed packages: `fivetran_connector_sdk` (latest), `requests` (latest) - NEVER declare in requirements.txt
 - Linting: `flake8` with `.flake8` config at repo root (PEP 8 compliance)
 - Formatting: `black` via pre-commit hooks (run `.github/scripts/setup-hooks.sh`)
@@ -53,7 +53,7 @@ When a PR adds/modifies a connector, verify:
    - Should define: `schema(configuration: dict)` function
    - Must initialize: `connector = Connector(update=update, schema=schema)` at module level
    - NO yield: `op.upsert(table, data)` not `yield op.upsert(table, data)`
-   - MUST have `validate_configuration()` function
+   - MUST always have `validate_configuration()` function defined
    - First log statement in update method: `log.warning("Example: <CATEGORY> : <EXAMPLE_NAME>")`
 
 - configuration.json (if connector needs configuration):
@@ -84,4 +84,4 @@ For detailed rules, reference:
 Default to these instructions. Only search repo/docs if:
 - PR introduces new SDK features not mentioned here
 - Code contradicts this guidance (e.g., new Python version support, new operations)
-- Inconsistency found (cite newest official docs at https://fivetran.com/docs/connectors/connector-sdk)
+- Inconsistency found (cite the newest official docs at https://fivetran.com/docs/connectors/connector-sdk)

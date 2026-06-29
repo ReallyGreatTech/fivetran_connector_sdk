@@ -1,7 +1,7 @@
 """Prometheus Time-Series Database Connector for Fivetran Connector SDK.
 This connector demonstrates how to sync metrics and time-series data from Prometheus monitoring system.
-See the Technical Reference documentation (https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update)
-and the Best Practices documentation (https://fivetran.com/docs/connectors/connector-sdk/best-practices) for details
+See the Technical Reference documentation (https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update)
+and the Best Practices documentation (https://fivetran.com/docs/connector-sdk/best-practices) for details
 """
 
 # For reading configuration from JSON file
@@ -90,7 +90,7 @@ def schema(configuration: dict) -> list[dict[str, Any]]:
     """
     Define the schema function which lets you configure the schema your connector delivers.
     See the technical reference documentation for more details on the schema function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#schema
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#schema
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
     """
@@ -176,7 +176,7 @@ def handle_retry_with_backoff(attempt: int, error_message: str) -> None:
         )
         time.sleep(delay)
     else:
-        log.severe(f"{error_message} after {__MAX_RETRIES} attempts")
+        log.error(f"{error_message} after {__MAX_RETRIES} attempts")
         raise RuntimeError(f"{error_message} after {__MAX_RETRIES} attempts")
 
 
@@ -199,7 +199,7 @@ def handle_response_status(response, attempt: int) -> dict:
         handle_retry_with_backoff(attempt, error_message)
         return None
 
-    log.severe(f"API request failed with status {response.status_code}: {response.text}")
+    log.error(f"API request failed with status {response.status_code}: {response.text}")
     raise RuntimeError(f"API request failed with status {response.status_code}: {response.text}")
 
 
@@ -228,7 +228,7 @@ def make_api_request(url: str, headers: dict, params: dict | None = None) -> dic
             handle_retry_with_backoff(attempt, "Request timeout")
 
         except requests.RequestException as e:
-            log.severe(f"Request failed: {str(e)}")
+            log.error(f"Request failed: {str(e)}")
             raise RuntimeError(f"Request failed: {str(e)}")
 
     raise RuntimeError("Failed to complete API request")
@@ -247,7 +247,7 @@ def fetch_metric_names(prometheus_url: str, headers: dict) -> list[str]:
     response_data = make_api_request(url, headers)
 
     if response_data.get("status") != "success":
-        log.severe(f"Failed to fetch metric names: {response_data}")
+        log.error(f"Failed to fetch metric names: {response_data}")
         raise RuntimeError(f"Failed to fetch metric names: {response_data}")
 
     metric_names = response_data.get("data", [])
@@ -350,7 +350,7 @@ def fetch_time_series_data(
     response_data = make_api_request(url, headers, params)
 
     if response_data.get("status") != "success":
-        log.severe(f"Failed to fetch time-series data: {response_data}")
+        log.error(f"Failed to fetch time-series data: {response_data}")
         raise RuntimeError(f"Failed to fetch time-series data: {response_data}")
 
     result_data = response_data.get("data", {})
@@ -459,7 +459,7 @@ def sync_time_series_for_metrics(
                 # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
                 # from the correct position in case of next sync or interruptions.
                 # Learn more about how and where to checkpoint by reading our best practices documentation
-                # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+                # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
                 op.checkpoint(state)
 
                 log.info(f"Checkpointed {total_data_points} data points")
@@ -479,7 +479,7 @@ def sync_time_series_for_metrics(
     # Save the progress by checkpointing the state. This is important for ensuring that the sync process can resume
     # from the correct position in case of next sync or interruptions.
     # Learn more about how and where to checkpoint by reading our best practices documentation
-    # (https://fivetran.com/docs/connectors/connector-sdk/best-practices#largedatasetrecommendation).
+    # (https://fivetran.com/docs/connector-sdk/best-practices#optimizingperformancewhenhandlinglargedatasets).
     op.checkpoint(state)
 
     log.info(
@@ -491,7 +491,7 @@ def update(configuration: dict, state: dict) -> None:
     """
     Define the update function which lets you configure how your connector fetches data.
     See the technical reference documentation for more details on the update function:
-    https://fivetran.com/docs/connectors/connector-sdk/technical-reference#update
+    https://fivetran.com/docs/connector-sdk/technical-reference/connector-sdk-code/connector-sdk-methods#update
     Args:
         configuration: a dictionary that holds the configuration settings for the connector.
         state: a dictionary that holds the state of the connector.
